@@ -21,6 +21,30 @@ updates:
         patterns:
           - "*"
 
+  # npm dependencies for the TypeScript action
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    commit-message:
+      prefix: "chore(deps)"
+    labels:
+      - "dependencies"
+      - "npm"
+    open-pull-requests-limit: 5
+    groups:
+      # Group @actions packages
+      actions:
+        patterns:
+          - "@actions/*"
+      # Group development dependencies
+      dev:
+        dependency-type: "development"
+        update-types:
+          - "minor"
+          - "patch"
+
   # NuGet dependencies for the test project
   - package-ecosystem: "nuget"
     directory: "/test-project"
