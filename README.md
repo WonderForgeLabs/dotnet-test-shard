@@ -42,7 +42,7 @@ jobs:
         uses: actions/setup-dotnet@v4
 
       - name: Run tests (shard ${{ matrix.shard }}/4)
-        uses: ElanHasson/dotnet-test-shard@v1
+        uses: WonderForgeLabs/dotnet-test-shard@v1
         with:
           shard: ${{ matrix.shard }}
           total-shards: 4
@@ -94,7 +94,7 @@ jobs:
           name: build
 
       - name: Run tests (shard ${{ matrix.shard }}/4)
-        uses: ElanHasson/dotnet-test-shard@v1
+        uses: WonderForgeLabs/dotnet-test-shard@v1
         with:
           shard: ${{ matrix.shard }}
           total-shards: 4
@@ -135,7 +135,7 @@ You can combine sharding with standard `dotnet test` filter expressions:
 
 ```yaml
 - name: Run unit tests only
-  uses: ElanHasson/dotnet-test-shard@v1
+  uses: WonderForgeLabs/dotnet-test-shard@v1
   with:
     shard: ${{ matrix.shard }}
     total-shards: 4
