@@ -1,7 +1,10 @@
 name: Test Action
 
 # This workflow tests the dotnet-test-shard GitHub Action
-# Reference: https://blog.codacy.com/how-to-test-github-actions
+# References:
+# - Testing GitHub Actions: https://blog.codacy.com/how-to-test-github-actions
+# - Beautiful .NET Test Reports: https://seankilleen.com/2024/03/beautiful-net-test-reports-using-github-actions/
+# - Test result aggregation: https://github.com/coverlet-coverage/coverlet/issues/357
 
 on:
   push:
@@ -9,6 +12,13 @@ on:
   pull_request:
     branches: [main]
   workflow_dispatch:
+
+# Required for test-reporter and PR comments
+permissions:
+  contents: read
+  actions: read
+  checks: write
+  pull-requests: write
 
 jobs:
   # Unit tests for the bash sharding logic
@@ -154,6 +164,94 @@ jobs:
           fi
 
           echo "::notice::All $BASELINE_TOTAL tests were distributed correctly across shards!"
+
+  # Aggregate and publish test results with beautiful reports
+  # Reference: https://seankilleen.com/2024/03/beautiful-net-test-reports-using-github-actions/
+  test-report:
+    needs: [verify-sharding]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all shard results
+        uses: actions/download-artifact@v4
+        with:
+          pattern: test-results-shard-*
+          merge-multiple: true
+          path: TestResults
+
+      - name: Download baseline results
+        uses: actions/download-artifact@v4
+        with:
+          name: baseline-results
+          path: BaselineResults
+
+      # Creates a beautiful test report in the GitHub Actions UI
+      # Reference: https://github.com/dorny/test-reporter
+      - name: Publish Test Report
+        uses: dorny/test-reporter@v1
+        if: always()
+        with:
+          name: '.NET Test Results (Sharded)'
+          path: 'TestResults/*.trx'
+          reporter: dotnet-trx
+          fail-on-error: false
+
+      # Publishes test results with PR comments and check annotations
+      # Reference: https://github.com/EnricoMi/publish-unit-test-result-action
+      - name: Publish Unit Test Results
+        uses: EnricoMi/publish-unit-test-result-action@v2
+        if: always()
+        with:
+          files: |
+            TestResults/*.trx
+            BaselineResults/*.trx
+          check_name: 'Test Results Summary'
+          comment_title: '📊 Test Results'
+          comment_mode: always
+
+      - name: Generate Test Summary
+        if: always()
+        run: |
+          echo "## 📊 Test Results Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          echo "### Baseline (All Tests)" >> $GITHUB_STEP_SUMMARY
+          if [[ -f "BaselineResults/baseline.trx" ]]; then
+            TOTAL=$(grep -oP 'total="\K[0-9]+' BaselineResults/baseline.trx | head -1 || echo "0")
+            PASSED=$(grep -oP 'passed="\K[0-9]+' BaselineResults/baseline.trx | head -1 || echo "0")
+            FAILED=$(grep -oP 'failed="\K[0-9]+' BaselineResults/baseline.trx | head -1 || echo "0")
+            echo "| Metric | Count |" >> $GITHUB_STEP_SUMMARY
+            echo "|--------|-------|" >> $GITHUB_STEP_SUMMARY
+            echo "| ✅ Passed | $PASSED |" >> $GITHUB_STEP_SUMMARY
+            echo "| ❌ Failed | $FAILED |" >> $GITHUB_STEP_SUMMARY
+            echo "| 📋 Total | $TOTAL |" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          echo "### Sharded Results" >> $GITHUB_STEP_SUMMARY
+          echo "| Shard | Tests | Passed | Failed |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|-------|--------|--------|" >> $GITHUB_STEP_SUMMARY
+
+          TOTAL_TESTS=0
+          TOTAL_PASSED=0
+          TOTAL_FAILED=0
+
+          for trx in TestResults/shard-*.trx; do
+            if [[ -f "$trx" ]]; then
+              SHARD_NAME=$(basename "$trx" .trx)
+              TESTS=$(grep -oP 'total="\K[0-9]+' "$trx" | head -1 || echo "0")
+              PASSED=$(grep -oP 'passed="\K[0-9]+' "$trx" | head -1 || echo "0")
+              FAILED=$(grep -oP 'failed="\K[0-9]+' "$trx" | head -1 || echo "0")
+              echo "| $SHARD_NAME | $TESTS | $PASSED | $FAILED |" >> $GITHUB_STEP_SUMMARY
+              TOTAL_TESTS=$((TOTAL_TESTS + TESTS))
+              TOTAL_PASSED=$((TOTAL_PASSED + PASSED))
+              TOTAL_FAILED=$((TOTAL_FAILED + FAILED))
+            fi
+          done
+
+          echo "| **Total** | **$TOTAL_TESTS** | **$TOTAL_PASSED** | **$TOTAL_FAILED** |" >> $GITHUB_STEP_SUMMARY
 
   # Test with no-build option
   test-no-build:

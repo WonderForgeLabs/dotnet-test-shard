@@ -274,3 +274,10 @@ MIT
 - [microsoft/testfx#4068](https://github.com/microsoft/testfx/issues/4068) - Native sharding feature request
 - [Playwright Test Sharding](https://playwright.dev/docs/test-sharding) - Inspiration for this approach
 - [Optimizing .NET Test Runs with Sharding](https://gor-grigoryan.medium.com/optimizing-net-test-runs-in-github-actions-with-test-sharding-for-faster-ci-cd-315e610cf560) - Related article
+
+## Inspirations
+
+- [Beautiful .NET Test Reports using GitHub Actions](https://seankilleen.com/2024/03/beautiful-net-test-reports-using-github-actions/) - Test reporting approach
+- [Coverlet Coverage Aggregation](https://github.com/coverlet-coverage/coverlet/issues/357) - Multi-project coverage strategies
+- [dorny/test-reporter](https://github.com/dorny/test-reporter) - Test result visualization
+- [EnricoMi/publish-unit-test-result-action](https://github.com/EnricoMi/publish-unit-test-result-action) - PR test result comments
