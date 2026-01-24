@@ -223,6 +223,44 @@ This action is inspired by [Playwright's test sharding](https://playwright.dev/d
 - **Filter length**: Very large test suites may hit command-line length limits
 - **Test ordering**: Tests with identical names in different assemblies may cluster
 
+## Testing
+
+This action is tested using multiple approaches:
+
+### Unit Tests
+The bash sharding logic is tested using [bats-core](https://github.com/bats-core/bats-core) (Bash Automated Testing System):
+
+```bash
+# Install bats
+brew install bats-core  # macOS
+# or: sudo apt-get install bats  # Ubuntu
+
+# Run unit tests
+bats tests/sharding.bats
+```
+
+### Integration Tests
+The [test workflow](.github/workflows/test.yml) runs comprehensive integration tests including:
+- 4-shard distribution verification
+- Single shard edge case
+- More shards than tests edge case
+- Filter combination tests
+- Trait-based filtering
+- Various shard counts (2, 3, 5, 8)
+
+### Local Testing with act
+You can test the action locally using [act](https://github.com/nektos/act):
+
+```bash
+# Install act
+brew install act  # macOS
+
+# Run the test workflow locally
+act -j verify-tests
+```
+
+See also: [How to Test GitHub Actions](https://blog.codacy.com/how-to-test-github-actions)
+
 ## Contributing
 
 Contributions welcome! Please open an issue or PR.

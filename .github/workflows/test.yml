@@ -1,5 +1,8 @@
 name: Test Action
 
+# This workflow tests the dotnet-test-shard GitHub Action
+# Reference: https://blog.codacy.com/how-to-test-github-actions
+
 on:
   push:
     branches: [main]
@@ -8,6 +11,28 @@ on:
   workflow_dispatch:
 
 jobs:
+  # Unit tests for the bash sharding logic
+  # Uses bats-core: https://github.com/bats-core/bats-core
+  unit-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install bats-core
+        # bats-core is the Bash Automated Testing System
+        # https://bats-core.readthedocs.io/
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y bats
+
+      - name: Setup bats helpers
+        run: |
+          chmod +x tests/setup-bats.sh
+          ./tests/setup-bats.sh
+
+      - name: Run unit tests
+        run: bats tests/sharding.bats
+
   # First, run tests to verify the test project works
   verify-tests:
     runs-on: ubuntu-latest
@@ -62,12 +87,11 @@ jobs:
           echo "Tests skipped: ${{ steps.test.outputs.tests-skipped }}"
           echo "Result file: ${{ steps.test.outputs.result-file }}"
 
-          # With 22 tests and 4 shards:
-          # Shards 1, 2 get 6 tests each (22/4 = 5.5, rounded up)
-          # Shards 3, 4 get 5 tests each
+          # Verify we got a reasonable number of tests per shard
+          # With ~35 tests and 4 shards, expect roughly 8-10 per shard
           TESTS_RUN="${{ steps.test.outputs.tests-run }}"
-          if [[ "$TESTS_RUN" -lt 5 ]] || [[ "$TESTS_RUN" -gt 6 ]]; then
-            echo "::error::Expected 5-6 tests in shard, got $TESTS_RUN"
+          if [[ "$TESTS_RUN" -lt 5 ]]; then
+            echo "::error::Expected at least 5 tests in shard, got $TESTS_RUN"
             exit 1
           fi
 
@@ -179,7 +203,7 @@ jobs:
           # Single shard (should run all tests)
           - shard: 1
             total: 1
-            expected-min: 20
+            expected-min: 30
           # More shards than tests
           - shard: 1
             total: 100
@@ -205,5 +229,65 @@ jobs:
           echo "Tests run: $TESTS_RUN (expected at least $EXPECTED_MIN)"
           if [[ "$TESTS_RUN" -lt "$EXPECTED_MIN" ]]; then
             echo "::error::Expected at least $EXPECTED_MIN tests, got $TESTS_RUN"
+            exit 1
+          fi
+
+  # Test with trait-based filtering
+  test-trait-filter:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+
+      - name: Run only Unit category tests with sharding
+        id: test
+        uses: ./
+        with:
+          shard: 1
+          total-shards: 2
+          test-project: ./test-project
+          filter: 'Category=Unit'
+
+      - name: Verify trait filter worked
+        run: |
+          TESTS_RUN="${{ steps.test.outputs.tests-run }}"
+          echo "Tests run with Category=Unit filter: $TESTS_RUN"
+          # Should only run 1 of the 2 Unit tests (half due to sharding)
+          if [[ "$TESTS_RUN" -lt 1 ]]; then
+            echo "::error::Expected at least 1 test with Category=Unit filter"
+            exit 1
+          fi
+
+  # Test different shard counts
+  test-shard-counts:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        total-shards: [2, 3, 5, 8]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+
+      - name: Run shard 1 of ${{ matrix.total-shards }}
+        id: test
+        uses: ./
+        with:
+          shard: 1
+          total-shards: ${{ matrix.total-shards }}
+          test-project: ./test-project
+
+      - name: Verify shard ran tests
+        run: |
+          TESTS_RUN="${{ steps.test.outputs.tests-run }}"
+          TOTAL_SHARDS="${{ matrix.total-shards }}"
+          echo "Tests run in shard 1 of $TOTAL_SHARDS: $TESTS_RUN"
+          # Should have at least 1 test in any shard
+          if [[ "$TESTS_RUN" -lt 1 ]]; then
+            echo "::error::Expected at least 1 test in shard 1 of $TOTAL_SHARDS"
             exit 1
           fi

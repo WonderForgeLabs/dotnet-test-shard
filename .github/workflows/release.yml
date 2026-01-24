@@ -1,0 +1,68 @@
+name: Release
+
+# Release workflow for dotnet-test-shard GitHub Action
+# Creates GitHub releases and updates major version tags (e.g., v1 -> v1.2.3)
+#
+# Triggering a release:
+# 1. Push a tag: git tag v1.0.0 && git push origin v1.0.0
+# 2. Or use workflow_dispatch with a version input
+#
+# References:
+# - GitHub Actions versioning: https://docs.github.com/en/actions/creating-actions/about-custom-actions#using-tags-for-release-management
+# - softprops/action-gh-release: https://github.com/softprops/action-gh-release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release (e.g., v1.0.0)'
+        required: true
+        type: string
+
+jobs:
+  test:
+    uses: ./.github/workflows/test.yml
+
+  release:
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Determine version
+        id: version
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            VERSION="${{ github.event.inputs.version }}"
+          else
+            VERSION="${{ github.ref_name }}"
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Releasing version: $VERSION"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.version }}
+          name: ${{ steps.version.outputs.version }}
+          generate_release_notes: true
+          draft: false
+          prerelease: ${{ contains(steps.version.outputs.version, '-') }}
+
+      - name: Update major version tag
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          MAJOR=$(echo "$VERSION" | sed -E 's/^v([0-9]+).*/v\1/')
+
+          # Update major version tag (e.g., v1 points to latest v1.x.x)
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -fa "$MAJOR" -m "Update $MAJOR tag to $VERSION"
+          git push origin "$MAJOR" --force
+
+          echo "Updated $MAJOR tag to point to $VERSION"

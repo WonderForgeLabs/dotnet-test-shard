@@ -1,3 +1,22 @@
+# .NET Test Shard - GitHub Action for automatic test sharding
+#
+# This action provides Playwright-style test sharding for .NET test projects
+# without requiring manual test annotations or attributes.
+#
+# Algorithm: Deterministic modulo-based distribution
+#   1. Discover all tests via `dotnet test --list-tests`
+#   2. Sort tests alphabetically for consistency
+#   3. Assign test[i] to shard = (i % total_shards) + 1
+#   4. Generate filter expression: FullyQualifiedName=Test1 | FullyQualifiedName=Test2 | ...
+#
+# References:
+# - Playwright test sharding inspiration: https://playwright.dev/docs/test-sharding
+# - Native sharding feature request: https://github.com/microsoft/testfx/issues/4068
+# - dotnet test filter syntax: https://learn.microsoft.com/en-us/dotnet/core/testing/selective-unit-tests
+#
+# Author: Elan Hasson
+# License: MIT
+
 name: '.NET Test Shard'
 description: 'Run .NET tests in a specific shard without requiring manual test annotations'
 author: 'Elan Hasson'
