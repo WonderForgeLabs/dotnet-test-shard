@@ -1,0 +1,267 @@
+name: '.NET Test Shard'
+description: 'Run .NET tests in a specific shard without requiring manual test annotations'
+author: 'Elan Hasson'
+
+branding:
+  icon: 'layers'
+  color: 'purple'
+
+inputs:
+  shard:
+    description: 'Current shard number (1-based)'
+    required: true
+  total-shards:
+    description: 'Total number of shards'
+    required: true
+  test-project:
+    description: 'Path to the test project or solution'
+    required: true
+  filter:
+    description: 'Optional test filter expression (passed to dotnet test --filter)'
+    required: false
+    default: ''
+  configuration:
+    description: 'Build configuration (Debug, Release)'
+    required: false
+    default: 'Release'
+  no-build:
+    description: 'Skip building (use when tests are pre-built)'
+    required: false
+    default: 'false'
+  results-directory:
+    description: 'Directory to output test results'
+    required: false
+    default: 'TestResults'
+  additional-args:
+    description: 'Additional arguments to pass to dotnet test'
+    required: false
+    default: ''
+  verbosity:
+    description: 'Test output verbosity (quiet, minimal, normal, detailed, diagnostic)'
+    required: false
+    default: 'normal'
+
+outputs:
+  tests-run:
+    description: 'Number of tests run in this shard'
+    value: ${{ steps.run-tests.outputs.tests-run }}
+  tests-passed:
+    description: 'Number of tests passed'
+    value: ${{ steps.run-tests.outputs.tests-passed }}
+  tests-failed:
+    description: 'Number of tests failed'
+    value: ${{ steps.run-tests.outputs.tests-failed }}
+  tests-skipped:
+    description: 'Number of tests skipped'
+    value: ${{ steps.run-tests.outputs.tests-skipped }}
+  result-file:
+    description: 'Path to the TRX result file'
+    value: ${{ steps.run-tests.outputs.result-file }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Discover and filter tests for shard
+      id: discover
+      shell: bash
+      env:
+        TEST_PROJECT: ${{ inputs.test-project }}
+        SHARD: ${{ inputs.shard }}
+        TOTAL_SHARDS: ${{ inputs.total-shards }}
+        FILTER: ${{ inputs.filter }}
+        CONFIGURATION: ${{ inputs.configuration }}
+        NO_BUILD: ${{ inputs.no-build }}
+      run: |
+        echo "::group::Discovering tests for shard $SHARD of $TOTAL_SHARDS"
+
+        # Validate inputs
+        if [[ ! "$SHARD" =~ ^[0-9]+$ ]] || [[ "$SHARD" -lt 1 ]]; then
+          echo "::error::Invalid shard number: $SHARD (must be >= 1)"
+          exit 1
+        fi
+
+        if [[ ! "$TOTAL_SHARDS" =~ ^[0-9]+$ ]] || [[ "$TOTAL_SHARDS" -lt 1 ]]; then
+          echo "::error::Invalid total shards: $TOTAL_SHARDS (must be >= 1)"
+          exit 1
+        fi
+
+        if [[ "$SHARD" -gt "$TOTAL_SHARDS" ]]; then
+          echo "::error::Shard $SHARD exceeds total shards $TOTAL_SHARDS"
+          exit 1
+        fi
+
+        # Build args for test discovery
+        BUILD_ARGS=""
+        if [[ "$NO_BUILD" == "true" ]]; then
+          BUILD_ARGS="--no-build"
+        fi
+
+        FILTER_ARGS=""
+        if [[ -n "$FILTER" ]]; then
+          FILTER_ARGS="--filter \"$FILTER\""
+        fi
+
+        # Discover all tests using dotnet test --list-tests
+        echo "Running: dotnet test \"$TEST_PROJECT\" --configuration $CONFIGURATION $BUILD_ARGS $FILTER_ARGS --list-tests"
+
+        # Get list of fully qualified test names
+        TEST_OUTPUT=$(dotnet test "$TEST_PROJECT" --configuration "$CONFIGURATION" $BUILD_ARGS $FILTER_ARGS --list-tests 2>&1) || true
+
+        # Parse test names from output (format varies by test framework)
+        # xUnit format: "    NamespaceName.ClassName.TestMethod"
+        # MSTest format: "    NamespaceName.ClassName.TestMethod"
+        # NUnit format: "    NamespaceName.ClassName.TestMethod"
+        TESTS=$(echo "$TEST_OUTPUT" | grep -E "^\s{4,}[A-Za-z]" | sed 's/^[[:space:]]*//' | sort)
+
+        TOTAL_TESTS=$(echo "$TESTS" | grep -c . || echo "0")
+        echo "Total tests discovered: $TOTAL_TESTS"
+
+        if [[ "$TOTAL_TESTS" -eq 0 ]]; then
+          echo "::warning::No tests discovered"
+          echo "shard-filter=" >> $GITHUB_OUTPUT
+          echo "test-count=0" >> $GITHUB_OUTPUT
+          echo "::endgroup::"
+          exit 0
+        fi
+
+        # Calculate which tests belong to this shard using deterministic modulo distribution
+        # This ensures even distribution without requiring manual annotations
+        SHARD_INDEX=$((SHARD - 1))  # Convert to 0-based
+        SHARD_TESTS=""
+        TEST_INDEX=0
+
+        while IFS= read -r test; do
+          if [[ -n "$test" ]]; then
+            if [[ $((TEST_INDEX % TOTAL_SHARDS)) -eq $SHARD_INDEX ]]; then
+              if [[ -n "$SHARD_TESTS" ]]; then
+                SHARD_TESTS="$SHARD_TESTS|$test"
+              else
+                SHARD_TESTS="$test"
+              fi
+            fi
+            TEST_INDEX=$((TEST_INDEX + 1))
+          fi
+        done <<< "$TESTS"
+
+        SHARD_TEST_COUNT=$(echo "$SHARD_TESTS" | tr '|' '\n' | grep -c . || echo "0")
+        echo "Tests in shard $SHARD: $SHARD_TEST_COUNT"
+
+        # Build the filter expression for dotnet test
+        # FullyQualifiedName matches with regex
+        if [[ -n "$SHARD_TESTS" ]]; then
+          # Escape special regex characters and build filter
+          ESCAPED_TESTS=$(echo "$SHARD_TESTS" | sed 's/\./\\./g')
+          SHARD_FILTER="FullyQualifiedName~($ESCAPED_TESTS)"
+          echo "shard-filter=$SHARD_FILTER" >> $GITHUB_OUTPUT
+        else
+          echo "shard-filter=" >> $GITHUB_OUTPUT
+        fi
+
+        echo "test-count=$SHARD_TEST_COUNT" >> $GITHUB_OUTPUT
+        echo "::endgroup::"
+
+    - name: Run tests for this shard
+      id: run-tests
+      if: steps.discover.outputs.test-count != '0'
+      shell: bash
+      env:
+        TEST_PROJECT: ${{ inputs.test-project }}
+        SHARD: ${{ inputs.shard }}
+        TOTAL_SHARDS: ${{ inputs.total-shards }}
+        CONFIGURATION: ${{ inputs.configuration }}
+        NO_BUILD: ${{ inputs.no-build }}
+        RESULTS_DIR: ${{ inputs.results-directory }}
+        ADDITIONAL_ARGS: ${{ inputs.additional-args }}
+        VERBOSITY: ${{ inputs.verbosity }}
+        BASE_FILTER: ${{ inputs.filter }}
+        SHARD_FILTER: ${{ steps.discover.outputs.shard-filter }}
+      run: |
+        echo "::group::Running tests for shard $SHARD of $TOTAL_SHARDS"
+
+        # Create results directory
+        mkdir -p "$RESULTS_DIR"
+
+        RESULT_FILE="$RESULTS_DIR/shard-$SHARD-of-$TOTAL_SHARDS.trx"
+
+        # Build command
+        CMD="dotnet test \"$TEST_PROJECT\""
+        CMD="$CMD --configuration $CONFIGURATION"
+        CMD="$CMD --verbosity $VERBOSITY"
+        CMD="$CMD --logger \"trx;LogFileName=$(basename $RESULT_FILE)\""
+        CMD="$CMD --results-directory \"$RESULTS_DIR\""
+
+        if [[ "$NO_BUILD" == "true" ]]; then
+          CMD="$CMD --no-build"
+        fi
+
+        # Combine base filter with shard filter
+        if [[ -n "$BASE_FILTER" ]] && [[ -n "$SHARD_FILTER" ]]; then
+          CMD="$CMD --filter \"($BASE_FILTER) & ($SHARD_FILTER)\""
+        elif [[ -n "$SHARD_FILTER" ]]; then
+          CMD="$CMD --filter \"$SHARD_FILTER\""
+        elif [[ -n "$BASE_FILTER" ]]; then
+          CMD="$CMD --filter \"$BASE_FILTER\""
+        fi
+
+        if [[ -n "$ADDITIONAL_ARGS" ]]; then
+          CMD="$CMD $ADDITIONAL_ARGS"
+        fi
+
+        echo "Running: $CMD"
+
+        # Run tests and capture exit code
+        set +e
+        eval $CMD
+        TEST_EXIT_CODE=$?
+        set -e
+
+        # Parse TRX file for results
+        if [[ -f "$RESULT_FILE" ]]; then
+          PASSED=$(grep -oP 'passed="\K[0-9]+' "$RESULT_FILE" | head -1 || echo "0")
+          FAILED=$(grep -oP 'failed="\K[0-9]+' "$RESULT_FILE" | head -1 || echo "0")
+          EXECUTED=$(grep -oP 'executed="\K[0-9]+' "$RESULT_FILE" | head -1 || echo "0")
+          # Calculate skipped as total - passed - failed (approximation)
+          SKIPPED=$((EXECUTED - PASSED - FAILED)) || SKIPPED=0
+          if [[ $SKIPPED -lt 0 ]]; then SKIPPED=0; fi
+        else
+          PASSED=0
+          FAILED=0
+          EXECUTED=0
+          SKIPPED=0
+        fi
+
+        echo "tests-run=$EXECUTED" >> $GITHUB_OUTPUT
+        echo "tests-passed=$PASSED" >> $GITHUB_OUTPUT
+        echo "tests-failed=$FAILED" >> $GITHUB_OUTPUT
+        echo "tests-skipped=$SKIPPED" >> $GITHUB_OUTPUT
+        echo "result-file=$RESULT_FILE" >> $GITHUB_OUTPUT
+
+        echo "::endgroup::"
+
+        # Summary
+        echo "### Shard $SHARD/$TOTAL_SHARDS Results" >> $GITHUB_STEP_SUMMARY
+        echo "| Metric | Count |" >> $GITHUB_STEP_SUMMARY
+        echo "|--------|-------|" >> $GITHUB_STEP_SUMMARY
+        echo "| Passed | $PASSED |" >> $GITHUB_STEP_SUMMARY
+        echo "| Failed | $FAILED |" >> $GITHUB_STEP_SUMMARY
+        echo "| Skipped | $SKIPPED |" >> $GITHUB_STEP_SUMMARY
+        echo "| Total | $EXECUTED |" >> $GITHUB_STEP_SUMMARY
+
+        exit $TEST_EXIT_CODE
+
+    - name: Handle empty shard
+      if: steps.discover.outputs.test-count == '0'
+      shell: bash
+      env:
+        SHARD: ${{ inputs.shard }}
+        TOTAL_SHARDS: ${{ inputs.total-shards }}
+      run: |
+        echo "No tests to run in shard $SHARD of $TOTAL_SHARDS"
+        echo "tests-run=0" >> $GITHUB_OUTPUT
+        echo "tests-passed=0" >> $GITHUB_OUTPUT
+        echo "tests-failed=0" >> $GITHUB_OUTPUT
+        echo "tests-skipped=0" >> $GITHUB_OUTPUT
+        echo "result-file=" >> $GITHUB_OUTPUT
+
+        echo "### Shard $SHARD/$TOTAL_SHARDS Results" >> $GITHUB_STEP_SUMMARY
+        echo "No tests assigned to this shard." >> $GITHUB_STEP_SUMMARY

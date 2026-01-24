@@ -1,0 +1,208 @@
+name: Test Action
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  # First, run tests to verify the test project works
+  verify-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+
+      - name: Run all tests (baseline)
+        run: |
+          cd test-project
+          dotnet test --logger "trx;LogFileName=baseline.trx" --results-directory ../TestResults
+          echo "Baseline test run complete"
+
+      - name: Upload baseline results
+        uses: actions/upload-artifact@v4
+        with:
+          name: baseline-results
+          path: TestResults/
+          retention-days: 7
+
+  # Test the sharding action with 4 shards
+  test-sharding:
+    needs: verify-tests
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+
+      - name: Run tests with sharding (shard ${{ matrix.shard }}/4)
+        id: test
+        uses: ./
+        with:
+          shard: ${{ matrix.shard }}
+          total-shards: 4
+          test-project: ./test-project
+          configuration: Debug
+          results-directory: TestResults
+
+      - name: Verify shard ran expected number of tests
+        run: |
+          echo "Tests run: ${{ steps.test.outputs.tests-run }}"
+          echo "Tests passed: ${{ steps.test.outputs.tests-passed }}"
+          echo "Tests failed: ${{ steps.test.outputs.tests-failed }}"
+          echo "Tests skipped: ${{ steps.test.outputs.tests-skipped }}"
+          echo "Result file: ${{ steps.test.outputs.result-file }}"
+
+          # With 22 tests and 4 shards:
+          # Shards 1, 2 get 6 tests each (22/4 = 5.5, rounded up)
+          # Shards 3, 4 get 5 tests each
+          TESTS_RUN="${{ steps.test.outputs.tests-run }}"
+          if [[ "$TESTS_RUN" -lt 5 ]] || [[ "$TESTS_RUN" -gt 6 ]]; then
+            echo "::error::Expected 5-6 tests in shard, got $TESTS_RUN"
+            exit 1
+          fi
+
+      - name: Upload shard results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results-shard-${{ matrix.shard }}
+          path: TestResults/
+          retention-days: 7
+
+  # Verify all tests were run exactly once across all shards
+  verify-sharding:
+    needs: test-sharding
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all shard results
+        uses: actions/download-artifact@v4
+        with:
+          pattern: test-results-shard-*
+          merge-multiple: true
+          path: TestResults
+
+      - name: Download baseline results
+        uses: actions/download-artifact@v4
+        with:
+          name: baseline-results
+          path: BaselineResults
+
+      - name: Verify test coverage
+        run: |
+          echo "=== Baseline Results ==="
+          ls -la BaselineResults/ || true
+
+          echo "=== Shard Results ==="
+          ls -la TestResults/ || true
+
+          # Extract test counts from TRX files
+          BASELINE_TOTAL=$(grep -oP 'total="\K[0-9]+' BaselineResults/baseline.trx | head -1)
+          echo "Baseline total tests: $BASELINE_TOTAL"
+
+          # Sum up tests from all shards
+          SHARD_TOTAL=0
+          for trx in TestResults/shard-*.trx; do
+            if [[ -f "$trx" ]]; then
+              COUNT=$(grep -oP 'total="\K[0-9]+' "$trx" | head -1 || echo "0")
+              echo "$(basename $trx): $COUNT tests"
+              SHARD_TOTAL=$((SHARD_TOTAL + COUNT))
+            fi
+          done
+          echo "Total tests across shards: $SHARD_TOTAL"
+
+          # Verify counts match
+          if [[ "$BASELINE_TOTAL" != "$SHARD_TOTAL" ]]; then
+            echo "::error::Test count mismatch! Baseline: $BASELINE_TOTAL, Shards total: $SHARD_TOTAL"
+            exit 1
+          fi
+
+          echo "::notice::All $BASELINE_TOTAL tests were distributed correctly across shards!"
+
+  # Test with no-build option
+  test-no-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+
+      - name: Build first
+        run: dotnet build test-project --configuration Release
+
+      - name: Run tests with no-build
+        uses: ./
+        with:
+          shard: 1
+          total-shards: 2
+          test-project: ./test-project
+          no-build: 'true'
+          configuration: Release
+
+  # Test with filter option
+  test-with-filter:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+
+      - name: Run only Alpha tests with sharding
+        uses: ./
+        with:
+          shard: 1
+          total-shards: 2
+          test-project: ./test-project
+          filter: 'FullyQualifiedName~AlphaTests'
+
+  # Test edge cases
+  test-edge-cases:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Single shard (should run all tests)
+          - shard: 1
+            total: 1
+            expected-min: 20
+          # More shards than tests
+          - shard: 1
+            total: 100
+            expected-min: 0
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+
+      - name: Run edge case test (shard ${{ matrix.shard }}/${{ matrix.total }})
+        id: test
+        uses: ./
+        with:
+          shard: ${{ matrix.shard }}
+          total-shards: ${{ matrix.total }}
+          test-project: ./test-project
+
+      - name: Verify results
+        run: |
+          TESTS_RUN="${{ steps.test.outputs.tests-run }}"
+          EXPECTED_MIN="${{ matrix.expected-min }}"
+          echo "Tests run: $TESTS_RUN (expected at least $EXPECTED_MIN)"
+          if [[ "$TESTS_RUN" -lt "$EXPECTED_MIN" ]]; then
+            echo "::error::Expected at least $EXPECTED_MIN tests, got $TESTS_RUN"
+            exit 1
+          fi
