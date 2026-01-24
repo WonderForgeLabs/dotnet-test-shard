@@ -147,11 +147,19 @@ runs:
         echo "Tests in shard $SHARD: $SHARD_TEST_COUNT"
 
         # Build the filter expression for dotnet test
-        # FullyQualifiedName matches with regex
+        # Use individual FullyQualifiedName= conditions joined with | (OR)
         if [[ -n "$SHARD_TESTS" ]]; then
-          # Escape special regex characters and build filter
-          ESCAPED_TESTS=$(echo "$SHARD_TESTS" | sed 's/\./\\./g')
-          SHARD_FILTER="FullyQualifiedName~($ESCAPED_TESTS)"
+          # Build filter: FullyQualifiedName=Test1 | FullyQualifiedName=Test2 | ...
+          SHARD_FILTER=""
+          while IFS='|' read -ra TEST_ARRAY; do
+            for test in "${TEST_ARRAY[@]}"; do
+              if [[ -n "$SHARD_FILTER" ]]; then
+                SHARD_FILTER="$SHARD_FILTER | FullyQualifiedName=$test"
+              else
+                SHARD_FILTER="FullyQualifiedName=$test"
+              fi
+            done
+          done <<< "$SHARD_TESTS"
           echo "shard-filter=$SHARD_FILTER" >> $GITHUB_OUTPUT
         else
           echo "shard-filter=" >> $GITHUB_OUTPUT

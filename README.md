@@ -203,7 +203,7 @@ This ensures:
 The action generates a `--filter` expression to run only the assigned tests:
 
 ```
-FullyQualifiedName~(MyNamespace\.MyClass\.Test1|MyNamespace\.OtherClass\.Test5|...)
+FullyQualifiedName=MyNamespace.MyClass.Test1 | FullyQualifiedName=MyNamespace.OtherClass.Test5 | ...
 ```
 
 ## Comparison with Playwright Sharding
