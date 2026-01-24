@@ -281,3 +281,4 @@ MIT
 - [Coverlet Coverage Aggregation](https://github.com/coverlet-coverage/coverlet/issues/357) - Multi-project coverage strategies
 - [dorny/test-reporter](https://github.com/dorny/test-reporter) - Test result visualization
 - [EnricoMi/publish-unit-test-result-action](https://github.com/EnricoMi/publish-unit-test-result-action) - PR test result comments
+
