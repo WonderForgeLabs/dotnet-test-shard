@@ -1,0 +1,35 @@
+name: Release Drafter
+
+# Automatically drafts release notes based on merged PRs
+# Reference: https://github.com/release-drafter/release-drafter
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    types: [opened, reopened, synchronize]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  update-release-draft:
+    runs-on: ubuntu-latest
+    steps:
+      # Drafts release notes on push to main
+      - uses: release-drafter/release-drafter@v6
+        if: github.event_name == 'push'
+        with:
+          config-name: release-drafter.yml
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Auto-labels PRs based on title/branch
+      - uses: release-drafter/release-drafter@v6
+        if: github.event_name == 'pull_request'
+        with:
+          config-name: release-drafter.yml
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

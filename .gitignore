@@ -1,0 +1,33 @@
+# .NET
+bin/
+obj/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Test results
+TestResults/
+*.trx
+coverage/
+
+# Node.js
+node_modules/
+*.log
+npm-debug.log*
+
+# IDE
+.idea/
+.vs/
+.vscode/
+*.swp
+*~
+
+# macOS
+.DS_Store
+
+# Windows
+Thumbs.db
+
+# Build output (keep dist/ for action to work)
+# dist/ is committed for GitHub Actions

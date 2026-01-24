@@ -1,0 +1,74 @@
+# .NET Test Shard - GitHub Action for automatic test sharding
+#
+# This action provides Playwright-style test sharding for .NET test projects
+# without requiring manual test annotations or attributes.
+#
+# Algorithm: Deterministic modulo-based distribution
+#   1. Discover all tests via `dotnet test --list-tests`
+#   2. Sort tests alphabetically for consistency
+#   3. Assign test[i] to shard = (i % total_shards) + 1
+#   4. Generate filter expression using FullyQualifiedName~
+#
+# References:
+# - Playwright test sharding inspiration: https://playwright.dev/docs/test-sharding
+# - Native sharding feature request: https://github.com/microsoft/testfx/issues/4068
+# - dotnet test filter syntax: https://learn.microsoft.com/en-us/dotnet/core/testing/selective-unit-tests
+
+name: '.NET Test Shard'
+description: 'Run .NET tests in a specific shard without requiring manual test annotations'
+author: 'Elan Hasson'
+
+branding:
+  icon: 'layers'
+  color: 'purple'
+
+inputs:
+  shard:
+    description: 'Current shard number (1-based)'
+    required: true
+  total-shards:
+    description: 'Total number of shards'
+    required: true
+  test-project:
+    description: 'Path to the test project or solution'
+    required: true
+  filter:
+    description: 'Optional test filter expression (passed to dotnet test --filter)'
+    required: false
+    default: ''
+  configuration:
+    description: 'Build configuration (Debug, Release)'
+    required: false
+    default: 'Release'
+  no-build:
+    description: 'Skip building (use when tests are pre-built)'
+    required: false
+    default: 'false'
+  results-directory:
+    description: 'Directory to output test results'
+    required: false
+    default: 'TestResults'
+  additional-args:
+    description: 'Additional arguments to pass to dotnet test'
+    required: false
+    default: ''
+  verbosity:
+    description: 'Test output verbosity (quiet, minimal, normal, detailed, diagnostic)'
+    required: false
+    default: 'normal'
+
+outputs:
+  tests-run:
+    description: 'Number of tests run in this shard'
+  tests-passed:
+    description: 'Number of tests passed'
+  tests-failed:
+    description: 'Number of tests failed'
+  tests-skipped:
+    description: 'Number of tests skipped'
+  result-file:
+    description: 'Path to the TRX result file'
+
+runs:
+  using: 'node20'
+  main: 'dist/index.js'
