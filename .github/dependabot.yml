@@ -41,9 +41,6 @@ updates:
       # Group development dependencies
       dev:
         dependency-type: "development"
-        update-types:
-          - "minor"
-          - "patch"
 
   # NuGet dependencies for the test project
   - package-ecosystem: "nuget"
@@ -64,8 +61,7 @@ updates:
           - "xunit*"
           - "Microsoft.NET.Test*"
           - "coverlet*"
-      # Group all other updates
-      nuget-minor:
-        update-types:
-          - "minor"
-          - "patch"
+      # Group all other nuget updates
+      nuget-other:
+        patterns:
+          - "*"
