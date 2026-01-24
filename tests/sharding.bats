@@ -87,28 +87,28 @@ teardown() {
 }
 
 # Test: Filter expression building
-@test "filter expression: single test" {
+@test "filter expression: single test with contains operator" {
     TEST="Namespace.Class.Method1"
-    FILTER="FullyQualifiedName=$TEST"
-    assert_equal "$FILTER" "FullyQualifiedName=Namespace.Class.Method1"
+    FILTER="(FullyQualifiedName~$TEST)"
+    assert_equal "$FILTER" "(FullyQualifiedName~Namespace.Class.Method1)"
 }
 
-@test "filter expression: multiple tests joined with OR" {
-    # Note: No spaces around | per dotnet test filter syntax
+@test "filter expression: multiple tests joined with OR using contains" {
+    # Use ~ (contains) and wrap in parentheses for VSTest compatibility
     # Reference: https://learn.microsoft.com/en-us/dotnet/core/testing/selective-unit-tests
     TESTS="Test1|Test2|Test3"
     FILTER=""
     while IFS='|' read -ra TEST_ARRAY; do
         for test in "${TEST_ARRAY[@]}"; do
             if [[ -n "$FILTER" ]]; then
-                FILTER="$FILTER|FullyQualifiedName=$test"
+                FILTER="$FILTER|(FullyQualifiedName~$test)"
             else
-                FILTER="FullyQualifiedName=$test"
+                FILTER="(FullyQualifiedName~$test)"
             fi
         done
     done <<< "$TESTS"
 
-    assert_equal "$FILTER" "FullyQualifiedName=Test1|FullyQualifiedName=Test2|FullyQualifiedName=Test3"
+    assert_equal "$FILTER" "(FullyQualifiedName~Test1)|(FullyQualifiedName~Test2)|(FullyQualifiedName~Test3)"
 }
 
 # Test: Input validation
@@ -138,10 +138,24 @@ teardown() {
     Namespace.Class.Test2
     Other.Namespace.Test3"
 
-    run bash -c "echo '$TEST_OUTPUT' | grep -E '^\\s{4,}[A-Za-z]' | sed 's/^[[:space:]]*//' | sort"
+    run bash -c "echo '$TEST_OUTPUT' | grep -E '^\\s{4,}[A-Za-z]' | sed 's/^[[:space:]]*//' | sed 's/(.*)//' | sort -u"
     assert_line --index 0 "Namespace.Class.Test1"
     assert_line --index 1 "Namespace.Class.Test2"
     assert_line --index 2 "Other.Namespace.Test3"
+}
+
+# Test: Theory test deduplication (params are stripped)
+@test "parse test names: deduplicates Theory tests by stripping parameters" {
+    TEST_OUTPUT="The following Tests are available:
+    Namespace.Class.Theory_Test(value: 1)
+    Namespace.Class.Theory_Test(value: 2)
+    Namespace.Class.Theory_Test(value: 3)
+    Namespace.Class.Regular_Test"
+
+    run bash -c "echo '$TEST_OUTPUT' | grep -E '^\\s{4,}[A-Za-z]' | sed 's/^[[:space:]]*//' | sed 's/(.*)//' | sort -u"
+    assert_line --index 0 "Namespace.Class.Regular_Test"
+    assert_line --index 1 "Namespace.Class.Theory_Test"
+    [ "${#lines[@]}" -eq 2 ]  # Only 2 unique tests
 }
 
 # Test: Determinism - same input produces same output
