@@ -167,13 +167,15 @@ runs:
 
         # Build the filter expression for dotnet test
         # Use individual FullyQualifiedName= conditions joined with | (OR)
+        # Important: No spaces around | operator per dotnet test filter syntax
+        # Reference: https://learn.microsoft.com/en-us/dotnet/core/testing/selective-unit-tests
         if [[ -n "$SHARD_TESTS" ]]; then
-          # Build filter: FullyQualifiedName=Test1 | FullyQualifiedName=Test2 | ...
+          # Build filter: FullyQualifiedName=Test1|FullyQualifiedName=Test2|...
           SHARD_FILTER=""
           while IFS='|' read -ra TEST_ARRAY; do
             for test in "${TEST_ARRAY[@]}"; do
               if [[ -n "$SHARD_FILTER" ]]; then
-                SHARD_FILTER="$SHARD_FILTER | FullyQualifiedName=$test"
+                SHARD_FILTER="$SHARD_FILTER|FullyQualifiedName=$test"
               else
                 SHARD_FILTER="FullyQualifiedName=$test"
               fi

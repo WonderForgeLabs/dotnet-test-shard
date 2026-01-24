@@ -94,19 +94,21 @@ teardown() {
 }
 
 @test "filter expression: multiple tests joined with OR" {
+    # Note: No spaces around | per dotnet test filter syntax
+    # Reference: https://learn.microsoft.com/en-us/dotnet/core/testing/selective-unit-tests
     TESTS="Test1|Test2|Test3"
     FILTER=""
     while IFS='|' read -ra TEST_ARRAY; do
         for test in "${TEST_ARRAY[@]}"; do
             if [[ -n "$FILTER" ]]; then
-                FILTER="$FILTER | FullyQualifiedName=$test"
+                FILTER="$FILTER|FullyQualifiedName=$test"
             else
                 FILTER="FullyQualifiedName=$test"
             fi
         done
     done <<< "$TESTS"
 
-    assert_equal "$FILTER" "FullyQualifiedName=Test1 | FullyQualifiedName=Test2 | FullyQualifiedName=Test3"
+    assert_equal "$FILTER" "FullyQualifiedName=Test1|FullyQualifiedName=Test2|FullyQualifiedName=Test3"
 }
 
 # Test: Input validation
@@ -159,7 +161,12 @@ Delta.Test4"
 # Test: Empty test list handling
 @test "empty tests: returns zero count" {
     TESTS=""
-    TOTAL_TESTS=$(echo "$TESTS" | grep -c . || echo "0")
+    # Use wc -l with trim to handle empty string correctly
+    if [[ -z "$TESTS" ]]; then
+        TOTAL_TESTS=0
+    else
+        TOTAL_TESTS=$(echo "$TESTS" | grep -c . || echo "0")
+    fi
     assert_equal "$TOTAL_TESTS" "0"
 }
 
