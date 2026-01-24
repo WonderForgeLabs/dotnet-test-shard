@@ -27,7 +27,7 @@ jobs:
   unit-tests:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Install bats-core
         # bats-core is the Bash Automated Testing System
@@ -48,10 +48,10 @@ jobs:
   verify-tests:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v5
 
       - name: Run all tests (baseline)
         run: |
@@ -60,7 +60,7 @@ jobs:
           echo "Baseline test run complete"
 
       - name: Upload baseline results
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: baseline-results
           path: TestResults/
@@ -75,10 +75,10 @@ jobs:
       matrix:
         shard: [1, 2, 3, 4]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v5
 
       - name: Run tests with sharding (shard ${{ matrix.shard }}/4)
         id: test
@@ -107,7 +107,7 @@ jobs:
           fi
 
       - name: Upload shard results
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         if: always()
         with:
           name: test-results-shard-${{ matrix.shard }}
@@ -120,17 +120,17 @@ jobs:
     if: always()
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Download all shard results
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           pattern: test-results-shard-*
           merge-multiple: true
           path: TestResults
 
       - name: Download baseline results
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           name: baseline-results
           path: BaselineResults
@@ -173,17 +173,17 @@ jobs:
     if: always()
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Download all shard results
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           pattern: test-results-shard-*
           merge-multiple: true
           path: TestResults
 
       - name: Download baseline results
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           name: baseline-results
           path: BaselineResults
@@ -191,7 +191,7 @@ jobs:
       # Creates a beautiful test report in the GitHub Actions UI
       # Reference: https://github.com/dorny/test-reporter
       - name: Publish Test Report
-        uses: dorny/test-reporter@v1
+        uses: dorny/test-reporter@v2
         if: always()
         with:
           name: '.NET Test Results (Sharded)'
@@ -258,10 +258,10 @@ jobs:
   test-no-build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v5
 
       - name: Build first
         run: dotnet build test-project --configuration Release
@@ -279,10 +279,10 @@ jobs:
   test-with-filter:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v5
 
       - name: Run only Alpha tests with sharding
         uses: ./
@@ -308,10 +308,10 @@ jobs:
             total: 100
             expected-min: 0
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v5
 
       - name: Run edge case test (shard ${{ matrix.shard }}/${{ matrix.total }})
         id: test
@@ -335,10 +335,10 @@ jobs:
   test-trait-filter:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v5
 
       - name: Run only Unit category tests with sharding
         id: test
@@ -367,10 +367,10 @@ jobs:
       matrix:
         total-shards: [2, 3, 5, 8]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v5
 
       - name: Run shard 1 of ${{ matrix.total-shards }}
         id: test
