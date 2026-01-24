@@ -1,15 +1,21 @@
 name: Release
 
 # Release workflow for dotnet-test-shard GitHub Action
-# Creates GitHub releases and updates major version tags (e.g., v1 -> v1.2.3)
+# Creates GitHub releases and updates version tags for easy consumption
 #
 # Triggering a release:
 # 1. Push a tag: git tag v1.0.0 && git push origin v1.0.0
 # 2. Or use workflow_dispatch with a version input
 #
+# Version tags created:
+# - v1.0.0 (exact version)
+# - v1.0 (minor version, points to latest v1.0.x)
+# - v1 (major version, points to latest v1.x.x)
+#
 # References:
 # - GitHub Actions versioning: https://docs.github.com/en/actions/creating-actions/about-custom-actions#using-tags-for-release-management
 # - softprops/action-gh-release: https://github.com/softprops/action-gh-release
+# - Semantic Versioning: https://semver.org/
 
 on:
   push:
@@ -23,18 +29,20 @@ on:
         type: string
 
 jobs:
+  # Run full test suite before releasing
   test:
     uses: ./.github/workflows/test.yml
 
-  release:
-    needs: test
+  # Validate version format
+  validate:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      major: ${{ steps.version.outputs.major }}
+      minor: ${{ steps.version.outputs.minor }}
+      is_prerelease: ${{ steps.version.outputs.is_prerelease }}
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Determine version
+      - name: Determine and validate version
         id: version
         run: |
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
@@ -42,27 +50,137 @@ jobs:
           else
             VERSION="${{ github.ref_name }}"
           fi
+
+          # Validate semver format (v1.0.0 or v1.0.0-beta.1)
+          if [[ ! "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?$ ]]; then
+            echo "::error::Invalid version format: $VERSION"
+            echo "::error::Expected format: v1.0.0 or v1.0.0-beta.1"
+            exit 1
+          fi
+
+          # Extract version components
+          MAJOR=$(echo "$VERSION" | sed -E 's/^v([0-9]+).*/v\1/')
+          MINOR=$(echo "$VERSION" | sed -E 's/^v([0-9]+\.[0-9]+).*/v\1/')
+          IS_PRERELEASE=$([[ "$VERSION" == *"-"* ]] && echo "true" || echo "false")
+
           echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "Releasing version: $VERSION"
+          echo "major=$MAJOR" >> $GITHUB_OUTPUT
+          echo "minor=$MINOR" >> $GITHUB_OUTPUT
+          echo "is_prerelease=$IS_PRERELEASE" >> $GITHUB_OUTPUT
+
+          echo "Version: $VERSION"
+          echo "Major: $MAJOR"
+          echo "Minor: $MINOR"
+          echo "Pre-release: $IS_PRERELEASE"
+
+  # Create the release
+  release:
+    needs: [test, validate]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Create tag (if workflow_dispatch)
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          VERSION="${{ needs.validate.outputs.version }}"
+
+          # Check if tag already exists
+          if git rev-parse "$VERSION" >/dev/null 2>&1; then
+            echo "::error::Tag $VERSION already exists"
+            exit 1
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a "$VERSION" -m "Release $VERSION"
+          git push origin "$VERSION"
+
+      - name: Generate release notes
+        id: notes
+        run: |
+          VERSION="${{ needs.validate.outputs.version }}"
+
+          # Get previous tag
+          PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+
+          if [[ -n "$PREV_TAG" ]]; then
+            echo "Changes since $PREV_TAG:" > release_notes.md
+            echo "" >> release_notes.md
+            git log --pretty=format:"- %s" "$PREV_TAG..HEAD" >> release_notes.md
+          else
+            echo "Initial release" > release_notes.md
+          fi
+
+          echo "" >> release_notes.md
+          echo "---" >> release_notes.md
+          echo "" >> release_notes.md
+          echo "## Usage" >> release_notes.md
+          echo "" >> release_notes.md
+          echo '```yaml' >> release_notes.md
+          echo "- uses: WonderForgeLabs/dotnet-test-shard@$VERSION" >> release_notes.md
+          echo "  with:" >> release_notes.md
+          echo "    shard: \${{ matrix.shard }}" >> release_notes.md
+          echo "    total-shards: 4" >> release_notes.md
+          echo "    test-project: ./tests/MyTests.csproj" >> release_notes.md
+          echo '```' >> release_notes.md
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ steps.version.outputs.version }}
-          name: ${{ steps.version.outputs.version }}
-          generate_release_notes: true
+          tag_name: ${{ needs.validate.outputs.version }}
+          name: ${{ needs.validate.outputs.version }}
+          body_path: release_notes.md
           draft: false
-          prerelease: ${{ contains(steps.version.outputs.version, '-') }}
+          prerelease: ${{ needs.validate.outputs.is_prerelease == 'true' }}
+          generate_release_notes: true
 
-      - name: Update major version tag
+      - name: Update version tags
+        if: needs.validate.outputs.is_prerelease == 'false'
         run: |
-          VERSION="${{ steps.version.outputs.version }}"
-          MAJOR=$(echo "$VERSION" | sed -E 's/^v([0-9]+).*/v\1/')
+          VERSION="${{ needs.validate.outputs.version }}"
+          MAJOR="${{ needs.validate.outputs.major }}"
+          MINOR="${{ needs.validate.outputs.minor }}"
 
-          # Update major version tag (e.g., v1 points to latest v1.x.x)
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Update major version tag (e.g., v1 points to latest v1.x.x)
+          echo "Updating $MAJOR tag to point to $VERSION"
           git tag -fa "$MAJOR" -m "Update $MAJOR tag to $VERSION"
           git push origin "$MAJOR" --force
 
-          echo "Updated $MAJOR tag to point to $VERSION"
+          # Update minor version tag (e.g., v1.0 points to latest v1.0.x)
+          echo "Updating $MINOR tag to point to $VERSION"
+          git tag -fa "$MINOR" -m "Update $MINOR tag to $VERSION"
+          git push origin "$MINOR" --force
+
+          echo "::notice::Updated version tags: $MAJOR and $MINOR now point to $VERSION"
+
+      - name: Release Summary
+        run: |
+          VERSION="${{ needs.validate.outputs.version }}"
+          MAJOR="${{ needs.validate.outputs.major }}"
+          MINOR="${{ needs.validate.outputs.minor }}"
+
+          echo "## 🚀 Release $VERSION" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Available Tags" >> $GITHUB_STEP_SUMMARY
+          echo "| Tag | Usage |" >> $GITHUB_STEP_SUMMARY
+          echo "|-----|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| \`$VERSION\` | Exact version (recommended for reproducibility) |" >> $GITHUB_STEP_SUMMARY
+          echo "| \`$MINOR\` | Latest patch in $MINOR.x |" >> $GITHUB_STEP_SUMMARY
+          echo "| \`$MAJOR\` | Latest version in $MAJOR.x.x |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Quick Start" >> $GITHUB_STEP_SUMMARY
+          echo '```yaml' >> $GITHUB_STEP_SUMMARY
+          echo "- uses: WonderForgeLabs/dotnet-test-shard@$MAJOR" >> $GITHUB_STEP_SUMMARY
+          echo "  with:" >> $GITHUB_STEP_SUMMARY
+          echo "    shard: \${{ matrix.shard }}" >> $GITHUB_STEP_SUMMARY
+          echo "    total-shards: 4" >> $GITHUB_STEP_SUMMARY
+          echo "    test-project: ./tests/MyTests.csproj" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
