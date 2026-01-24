@@ -3,9 +3,12 @@ name: Release
 # Release workflow for dotnet-test-shard GitHub Action
 # Creates GitHub releases and updates version tags for easy consumption
 #
-# Triggering a release:
-# 1. Push a tag: git tag v1.0.0 && git push origin v1.0.0
-# 2. Or use workflow_dispatch with a version input
+# Workflow:
+# 1. release-drafter.yml automatically drafts release notes on each PR merge
+# 2. When ready to release, either:
+#    a. Push a tag: git tag v1.0.0 && git push origin v1.0.0
+#    b. Use workflow_dispatch with a version input
+#    c. Publish the draft release from GitHub UI
 #
 # Version tags created:
 # - v1.0.0 (exact version)
@@ -14,7 +17,7 @@ name: Release
 #
 # References:
 # - GitHub Actions versioning: https://docs.github.com/en/actions/creating-actions/about-custom-actions#using-tags-for-release-management
-# - softprops/action-gh-release: https://github.com/softprops/action-gh-release
+# - Release Drafter: https://github.com/release-drafter/release-drafter
 # - Semantic Versioning: https://semver.org/
 
 on:

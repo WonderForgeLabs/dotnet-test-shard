@@ -1,0 +1,112 @@
+# Configuration for release-drafter
+# Reference: https://github.com/release-drafter/release-drafter
+
+name-template: 'v$RESOLVED_VERSION'
+tag-template: 'v$RESOLVED_VERSION'
+
+# Categories for organizing release notes
+categories:
+  - title: '🚀 Features'
+    labels:
+      - 'feature'
+      - 'enhancement'
+  - title: '🐛 Bug Fixes'
+    labels:
+      - 'fix'
+      - 'bugfix'
+      - 'bug'
+  - title: '🧰 Maintenance'
+    labels:
+      - 'chore'
+      - 'maintenance'
+      - 'dependencies'
+  - title: '📖 Documentation'
+    labels:
+      - 'documentation'
+      - 'docs'
+  - title: '⚠️ Breaking Changes'
+    labels:
+      - 'breaking'
+      - 'breaking-change'
+
+# Exclude these labels from release notes
+exclude-labels:
+  - 'skip-changelog'
+  - 'no-changelog'
+
+# Version resolver based on labels
+version-resolver:
+  major:
+    labels:
+      - 'major'
+      - 'breaking'
+      - 'breaking-change'
+  minor:
+    labels:
+      - 'minor'
+      - 'feature'
+      - 'enhancement'
+  patch:
+    labels:
+      - 'patch'
+      - 'fix'
+      - 'bugfix'
+      - 'bug'
+      - 'maintenance'
+      - 'documentation'
+  default: patch
+
+# Autolabeler for PRs based on title/branch
+autolabeler:
+  - label: 'documentation'
+    files:
+      - '*.md'
+      - 'docs/**/*'
+    branch:
+      - '/docs?[-/].+/'
+  - label: 'bug'
+    branch:
+      - '/fix[-/].+/'
+      - '/bug[-/].+/'
+    title:
+      - '/fix/i'
+      - '/bug/i'
+  - label: 'enhancement'
+    branch:
+      - '/feat[-/].+/'
+      - '/feature[-/].+/'
+    title:
+      - '/feat/i'
+      - '/feature/i'
+      - '/add/i'
+  - label: 'chore'
+    branch:
+      - '/chore[-/].+/'
+      - '/maintenance[-/].+/'
+
+# Template for release notes
+template: |
+  ## What's Changed
+
+  $CHANGES
+
+  ## Usage
+
+  ```yaml
+  jobs:
+    test:
+      runs-on: ubuntu-latest
+      strategy:
+        matrix:
+          shard: [1, 2, 3, 4]
+      steps:
+        - uses: actions/checkout@v4
+        - uses: actions/setup-dotnet@v4
+        - uses: WonderForgeLabs/dotnet-test-shard@v$RESOLVED_VERSION
+          with:
+            shard: ${{ matrix.shard }}
+            total-shards: 4
+            test-project: ./tests/MyTests.csproj
+  ```
+
+  **Full Changelog**: https://github.com/$OWNER/$REPOSITORY/compare/$PREVIOUS_TAG...v$RESOLVED_VERSION
