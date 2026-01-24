@@ -203,8 +203,10 @@ This ensures:
 The action generates a `--filter` expression to run only the assigned tests:
 
 ```
-FullyQualifiedName=MyNamespace.MyClass.Test1 | FullyQualifiedName=MyNamespace.OtherClass.Test5 | ...
+(FullyQualifiedName~MyNamespace.MyClass.Test1)|(FullyQualifiedName~MyNamespace.OtherClass.Test5)|...
 ```
+
+The `~` operator means "contains", which ensures Theory test variants (parameterized tests) are included.
 
 ## Comparison with Playwright Sharding
 
@@ -228,25 +230,33 @@ This action is inspired by [Playwright's test sharding](https://playwright.dev/d
 This action is tested using multiple approaches:
 
 ### Unit Tests
-The bash sharding logic is tested using [bats-core](https://github.com/bats-core/bats-core) (Bash Automated Testing System):
+The TypeScript sharding logic is tested using [Jest](https://jestjs.io/):
 
 ```bash
-# Install bats
-brew install bats-core  # macOS
-# or: sudo apt-get install bats  # Ubuntu
+# Install dependencies
+npm ci
 
 # Run unit tests
-bats tests/sharding.bats
+npm test
+
+# Run with coverage
+npm test -- --coverage
 ```
+
+The unit tests cover:
+- Test discovery and output parsing
+- Modulo-based shard distribution
+- Filter expression generation
+- TRX result file parsing
+- Edge cases (empty shards, single shard, more shards than tests)
 
 ### Integration Tests
 The [test workflow](.github/workflows/test.yml) runs comprehensive integration tests including:
 - 4-shard distribution verification
-- Single shard edge case
-- More shards than tests edge case
+- Single shard edge case (1/1)
+- More shards than tests edge case (1/100)
 - Filter combination tests
-- Trait-based filtering
-- Various shard counts (2, 3, 5, 8)
+- Test result aggregation and reporting
 
 ### Local Testing with act
 You can test the action locally using [act](https://github.com/nektos/act):
