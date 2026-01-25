@@ -1,4 +1,5 @@
 import * as exec from '@actions/exec';
+import * as core from '@actions/core';
 import { DiscoveryResult } from './types';
 
 /**
@@ -72,6 +73,23 @@ export async function discoverTests(
 
   // Parse tests even if exit code is non-zero (may have warnings)
   const tests = parseTestOutput(output);
+
+  // If no tests found and exit code is non-zero, throw an error with stderr output
+  if (tests.length === 0 && exitCode !== 0) {
+    const errorMessage = errorOutput.trim() || output.trim() || 'Unknown error';
+    throw new Error(
+      `Test discovery failed with exit code ${exitCode}: ${errorMessage}`
+    );
+  }
+
+  // Warn if exit code is non-zero but tests were found (may indicate partial failure)
+  if (tests.length > 0 && exitCode !== 0) {
+    core.warning(
+      `Test discovery completed with non-zero exit code ${exitCode}. ` +
+        `Found ${tests.length} tests but there may have been errors. ` +
+        (errorOutput.trim() ? `stderr: ${errorOutput.trim()}` : '')
+    );
+  }
 
   return {
     tests,

@@ -19,10 +19,19 @@ export function parseTrxResults(trxPath: string): {
   executed: number;
 } {
   if (!fs.existsSync(trxPath)) {
-    return { total: 0, passed: 0, failed: 0, executed: 0 };
+    throw new Error(
+      `TRX result file not found: ${trxPath}. ` +
+        `This may indicate that the test run failed before producing results.`
+    );
   }
 
-  const content = fs.readFileSync(trxPath, 'utf-8');
+  let content: string;
+  try {
+    content = fs.readFileSync(trxPath, 'utf-8');
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(`Failed to read TRX result file '${trxPath}': ${message}`);
+  }
 
   const totalMatch = content.match(/total="(\d+)"/);
   const passedMatch = content.match(/passed="(\d+)"/);
@@ -62,7 +71,14 @@ export async function runTests(
 ): Promise<TestRunResult> {
   // Ensure results directory exists
   if (!fs.existsSync(resultsDirectory)) {
-    fs.mkdirSync(resultsDirectory, { recursive: true });
+    try {
+      fs.mkdirSync(resultsDirectory, { recursive: true });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      throw new Error(
+        `Failed to create results directory '${resultsDirectory}': ${message}`
+      );
+    }
   }
 
   const resultFile = path.join(resultsDirectory, resultFileName);

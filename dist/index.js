@@ -25937,6 +25937,7 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.parseTestOutput = parseTestOutput;
 exports.discoverTests = discoverTests;
 const exec = __importStar(__nccwpck_require__(5236));
+const core = __importStar(__nccwpck_require__(7484));
 /**
  * Parse test names from dotnet test --list-tests output
  *
@@ -25995,6 +25996,17 @@ async function discoverTests(testProject, configuration, noBuild, filter) {
     });
     // Parse tests even if exit code is non-zero (may have warnings)
     const tests = parseTestOutput(output);
+    // If no tests found and exit code is non-zero, throw an error with stderr output
+    if (tests.length === 0 && exitCode !== 0) {
+        const errorMessage = errorOutput.trim() || output.trim() || 'Unknown error';
+        throw new Error(`Test discovery failed with exit code ${exitCode}: ${errorMessage}`);
+    }
+    // Warn if exit code is non-zero but tests were found (may indicate partial failure)
+    if (tests.length > 0 && exitCode !== 0) {
+        core.warning(`Test discovery completed with non-zero exit code ${exitCode}. ` +
+            `Found ${tests.length} tests but there may have been errors. ` +
+            (errorOutput.trim() ? `stderr: ${errorOutput.trim()}` : ''));
+    }
     return {
         tests,
         totalCount: tests.length,
@@ -26241,6 +26253,9 @@ async function run() {
     catch (error) {
         if (error instanceof Error) {
             core.setFailed(error.message);
+            if (error.stack) {
+                core.error(error.stack);
+            }
         }
         else {
             core.setFailed('An unexpected error occurred');
@@ -26307,9 +26322,17 @@ const path = __importStar(__nccwpck_require__(6928));
  */
 function parseTrxResults(trxPath) {
     if (!fs.existsSync(trxPath)) {
-        return { total: 0, passed: 0, failed: 0, executed: 0 };
+        throw new Error(`TRX result file not found: ${trxPath}. ` +
+            `This may indicate that the test run failed before producing results.`);
     }
-    const content = fs.readFileSync(trxPath, 'utf-8');
+    let content;
+    try {
+        content = fs.readFileSync(trxPath, 'utf-8');
+    }
+    catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        throw new Error(`Failed to read TRX result file '${trxPath}': ${message}`);
+    }
     const totalMatch = content.match(/total="(\d+)"/);
     const passedMatch = content.match(/passed="(\d+)"/);
     const failedMatch = content.match(/failed="(\d+)"/);
@@ -26337,7 +26360,13 @@ function parseTrxResults(trxPath) {
 async function runTests(testProject, configuration, noBuild, filter, resultsDirectory, resultFileName, verbosity, additionalArgs) {
     // Ensure results directory exists
     if (!fs.existsSync(resultsDirectory)) {
-        fs.mkdirSync(resultsDirectory, { recursive: true });
+        try {
+            fs.mkdirSync(resultsDirectory, { recursive: true });
+        }
+        catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            throw new Error(`Failed to create results directory '${resultsDirectory}': ${message}`);
+        }
     }
     const resultFile = path.join(resultsDirectory, resultFileName);
     const args = [
