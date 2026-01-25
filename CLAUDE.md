@@ -62,7 +62,7 @@ The action runs from `dist/index.js` (bundled via `@vercel/ncc`). The pre-commit
 
 - **Sharding formula:** `test[i]` goes to shard `(i % totalShards) + 1` (1-based shards)
 - **Filter syntax:** Uses `FullyQualifiedName~TestName` (contains operator) to match Theory variants
-- **TRX parsing:** Regex-based extraction of `<Counters total="X" passed="Y" failed="Z" executed="W"/>` attributes
+- **TRX parsing:** Regex-based extraction of `<Counters total="X" passed="Y" failed="Z" executed="W" notExecuted="V"/>` attributes
 
 ## Testing the Action Locally
 
