@@ -126,7 +126,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4]
+        shard: [1, 2]
     steps:
       - uses: actions/checkout@v6
 
@@ -139,12 +139,12 @@ jobs:
       - name: Setup .NET
         uses: actions/setup-dotnet@v5
 
-      - name: Run tests with sharding (shard ${{ matrix.shard }}/4)
+      - name: Run tests with sharding (shard ${{ matrix.shard }}/2)
         id: test
         uses: ./
         with:
           shard: ${{ matrix.shard }}
-          total-shards: 4
+          total-shards: 2
           test-project: ./test-project
           configuration: Debug
           results-directory: TestResults/shard-${{ matrix.shard }}
@@ -265,7 +265,7 @@ jobs:
 
   # Test edge cases
   test-edge-cases:
-    needs: build
+    needs: [build, unit-tests]
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -309,7 +309,7 @@ jobs:
 
   # Test with filter option
   test-with-filter:
-    needs: build
+    needs: [build, unit-tests]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
