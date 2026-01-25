@@ -26291,11 +26291,59 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.parseArgs = parseArgs;
 exports.parseTrxResults = parseTrxResults;
 exports.runTests = runTests;
 const exec = __importStar(__nccwpck_require__(5236));
 const fs = __importStar(__nccwpck_require__(9896));
 const path = __importStar(__nccwpck_require__(6928));
+/**
+ * Parse a string of arguments respecting quoted strings
+ *
+ * Handles both single and double quotes, allowing spaces within quoted sections.
+ * Examples:
+ *   '--collect:"XPlat Code Coverage"' -> ['--collect:XPlat Code Coverage']
+ *   '--foo bar --baz "hello world"' -> ['--foo', 'bar', '--baz', 'hello world']
+ *
+ * @param argsString - The string of arguments to parse
+ * @returns Array of parsed arguments
+ */
+function parseArgs(argsString) {
+    const args = [];
+    let current = '';
+    let inQuote = null;
+    for (let i = 0; i < argsString.length; i++) {
+        const char = argsString[i];
+        if (inQuote) {
+            if (char === inQuote) {
+                // End of quoted section
+                inQuote = null;
+            }
+            else {
+                current += char;
+            }
+        }
+        else if (char === '"' || char === "'") {
+            // Start of quoted section
+            inQuote = char;
+        }
+        else if (char === ' ' || char === '\t') {
+            // Whitespace outside quotes - end of argument
+            if (current) {
+                args.push(current);
+                current = '';
+            }
+        }
+        else {
+            current += char;
+        }
+    }
+    // Don't forget the last argument
+    if (current) {
+        args.push(current);
+    }
+    return args;
+}
 /**
  * Parse test results from a TRX file
  *
@@ -26374,8 +26422,8 @@ async function runTests(testProject, configuration, noBuild, filter, resultsDire
         args.push('--filter', filter);
     }
     if (additionalArgs) {
-        // Split additional args on spaces (respecting quotes would be more complex)
-        args.push(...additionalArgs.split(/\s+/).filter((a) => a));
+        // Parse additional args respecting quotes (e.g., '--collect:"XPlat Code Coverage"')
+        args.push(...parseArgs(additionalArgs));
     }
     const exitCode = await exec.exec('dotnet', args, {
         ignoreReturnCode: true,
