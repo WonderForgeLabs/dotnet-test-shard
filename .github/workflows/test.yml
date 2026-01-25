@@ -147,7 +147,7 @@ jobs:
           total-shards: 4
           test-project: ./test-project
           configuration: Debug
-          results-directory: TestResults
+          results-directory: TestResults/shard-${{ matrix.shard }}
 
       - name: Verify shard results
         run: |
@@ -198,14 +198,22 @@ jobs:
           echo "Baseline total tests: $BASELINE_TOTAL"
 
           SHARD_TOTAL=0
-          for trx in TestResults/shard-*.trx; do
-            if [[ -f "$trx" ]]; then
-              COUNT=$(grep -oP 'total="\K[0-9]+' "$trx" | head -1 || echo "0")
-              echo "$(basename $trx): $COUNT tests"
-              SHARD_TOTAL=$((SHARD_TOTAL + COUNT))
+          for shard_dir in TestResults/shard-*; do
+            if [[ -d "$shard_dir" ]]; then
+              SHARD_NUM=$(basename "$shard_dir" | grep -oP '\d+')
+              SHARD_COUNT=0
+              for trx in "$shard_dir"/*.trx; do
+                if [[ -f "$trx" ]]; then
+                  COUNT=$(grep -oP 'total="\K[0-9]+' "$trx" | head -1 || echo "0")
+                  echo "Shard $SHARD_NUM - $(basename $trx): $COUNT tests"
+                  SHARD_COUNT=$((SHARD_COUNT + COUNT))
+                fi
+              done
+              echo "Shard $SHARD_NUM total: $SHARD_COUNT tests"
+              SHARD_TOTAL=$((SHARD_TOTAL + SHARD_COUNT))
             fi
           done
-          echo "Total tests across shards: $SHARD_TOTAL"
+          echo "Total tests across all shards: $SHARD_TOTAL"
 
           if [[ "$BASELINE_TOTAL" != "$SHARD_TOTAL" ]]; then
             echo "::error::Test count mismatch! Baseline: $BASELINE_TOTAL, Shards total: $SHARD_TOTAL"
@@ -240,7 +248,7 @@ jobs:
         if: always()
         with:
           name: '.NET Test Results'
-          path: 'TestResults/*.trx'
+          path: 'TestResults/**/*.trx'
           reporter: dotnet-trx
           fail-on-error: false
 
@@ -249,7 +257,7 @@ jobs:
         if: always()
         with:
           files: |
-            TestResults/*.trx
+            TestResults/**/*.trx
             BaselineResults/*.trx
           check_name: 'Test Results Summary'
           comment_title: '📊 Test Results'

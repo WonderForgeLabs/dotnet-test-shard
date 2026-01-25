@@ -44,9 +44,8 @@ export declare function parseTrxResults(trxPath: string): {
  * @param noBuild - Skip building
  * @param filter - Test filter expression
  * @param resultsDirectory - Directory for test results
- * @param resultFileName - Name of the TRX result file
  * @param verbosity - Output verbosity level
  * @param additionalArgs - Additional arguments to pass to dotnet test
  * @returns Test run result with counts and exit code
  */
-export declare function runTests(testProject: string, configuration: string, noBuild: boolean, filter: string, resultsDirectory: string, resultFileName: string, verbosity: string, additionalArgs: string): Promise<TestRunResult>;
+export declare function runTests(testProject: string, configuration: string, noBuild: boolean, filter: string, resultsDirectory: string, verbosity: string, additionalArgs: string): Promise<TestRunResult>;

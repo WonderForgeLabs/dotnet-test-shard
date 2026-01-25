@@ -136,14 +136,12 @@ async function run(): Promise<void> {
     core.startGroup(`Running tests for shard ${inputs.shard} of ${inputs.totalShards}`);
 
     // Run tests
-    const resultFileName = `shard-${inputs.shard}-of-${inputs.totalShards}.trx`;
     const result = await runTests(
       inputs.testProject,
       inputs.configuration,
       inputs.noBuild,
       combinedFilter,
       inputs.resultsDirectory,
-      resultFileName,
       inputs.verbosity,
       inputs.additionalArgs
     );

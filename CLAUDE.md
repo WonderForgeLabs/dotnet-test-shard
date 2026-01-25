@@ -54,7 +54,7 @@ npm run all
 - **types.ts** - TypeScript interfaces: `ActionInputs`, `ActionOutputs`, `DiscoveryResult`, `TestRunResult`
 - **discover.ts** - Test discovery via `dotnet test --list-tests`. Parses output, strips Theory parameters, deduplicates
 - **filter.ts** - Sharding logic. `getTestsForShard()` uses modulo distribution. `buildFilterExpression()` generates VSTest filter
-- **runner.ts** - Executes `dotnet test` with filter, parses TRX results file
+- **runner.ts** - Executes `dotnet test` with filter, aggregates results from multiple TRX files (one per assembly)
 
 ### Test Mocks (`__tests__/mocks/`)
 
@@ -68,9 +68,14 @@ The action runs from `dist/index.js` (bundled via `@vercel/ncc`). The pre-commit
 
 - **Sharding formula:** `test[i]` goes to shard `(i % totalShards) + 1` (1-based shards)
 - **Filter syntax:** Uses `FullyQualifiedName~TestName` (contains operator) to match Theory variants
+- **TRX aggregation:** Dotnet generates unique TRX files per assembly when LogFileName is not specified
+  - `runner.ts` aggregates results from all `*.trx` files in the results directory
+  - Each assembly creates a timestamped file (e.g., `TestResults_user_2024-01-25_08_13_03.trx`)
+  - Prevents TRX file overwrites when testing solutions with multiple assemblies
 - **TRX parsing:** Regex-based extraction of `<Counters total="X" passed="Y" failed="Z" executed="W" notExecuted="V"/>` attributes
   - `notExecuted` is used for accurate skipped test counts (fixes issue where `executed - passed - failed` always equals 0)
   - Falls back to `total - executed` when `notExecuted` attribute is missing
+  - The `resultFile` output now returns the directory path containing all TRX files, not a single file path
 
 ## Theory Test Handling
 
