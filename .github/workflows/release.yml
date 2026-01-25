@@ -31,6 +31,12 @@ on:
         required: true
         type: string
 
+permissions:
+  contents: write
+  actions: read
+  checks: write
+  pull-requests: write
+
 jobs:
   # Run full test suite before releasing
   test:
@@ -80,8 +86,6 @@ jobs:
   release:
     needs: [test, validate]
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
     steps:
       - uses: actions/checkout@v6
         with:
