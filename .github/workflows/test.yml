@@ -40,9 +40,10 @@ jobs:
 
       - name: Check for uncommitted changes
         run: |
-          if [[ -n "$(git status --porcelain dist/)" ]]; then
+          # Exclude .d.ts.map files as they contain absolute paths that differ between environments
+          if [[ -n "$(git status --porcelain dist/ | grep -v '\.d\.ts\.map$')" ]]; then
             echo "::error::dist/ is out of date. Run 'npm run build' and commit the changes."
-            git diff dist/
+            git diff dist/ -- ':!*.d.ts.map'
             exit 1
           fi
           echo "dist/ is up-to-date"
