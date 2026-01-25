@@ -4,7 +4,6 @@ name: Release
 # The release and tag are created by publishing the draft from release-drafter.
 #
 # References:
-# - nowactions/update-majorver: https://github.com/nowactions/update-majorver
 # - GitHub Actions versioning: https://docs.github.com/en/actions/creating-actions/about-custom-actions#using-tags-for-release-management
 
 on:
@@ -21,11 +20,25 @@ jobs:
   test:
     uses: ./.github/workflows/test.yml
 
-  update-tags:
+  update-major-tag:
     needs: test
     runs-on: ubuntu-latest
     if: ${{ !github.event.release.prerelease }}
     steps:
       - uses: actions/checkout@v4
 
-      - uses: nowactions/update-majorver@v1
+      - name: Update major version tag
+        run: |
+          VERSION="${{ github.event.release.tag_name }}"
+
+          # Extract major version (v1 from v1.0.0)
+          if [[ "$VERSION" =~ ^(v[0-9]+)\.[0-9]+\.[0-9]+$ ]]; then
+            MAJOR="${BASH_REMATCH[1]}"
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git tag -fa "$MAJOR" "$VERSION" -m "Update $MAJOR to $VERSION"
+            git push origin "$MAJOR" --force
+            echo "Updated $MAJOR → $VERSION"
+          else
+            echo "Tag $VERSION does not match semver pattern vX.Y.Z, skipping major tag update"
+          fi
