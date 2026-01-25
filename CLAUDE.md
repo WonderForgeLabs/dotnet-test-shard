@@ -21,6 +21,9 @@ npm ci
 # Run all tests
 npm test
 
+# Run tests in watch mode
+npm test:watch
+
 # Run tests with coverage
 npm test -- --coverage
 
@@ -32,6 +35,9 @@ npm test -- --testNamePattern="getTestsForShard"
 
 # Build the action (outputs to dist/)
 npm run build
+
+# Lint code
+npm run lint
 
 # Format code
 npm run format
@@ -63,6 +69,20 @@ The action runs from `dist/index.js` (bundled via `@vercel/ncc`). The pre-commit
 - **Sharding formula:** `test[i]` goes to shard `(i % totalShards) + 1` (1-based shards)
 - **Filter syntax:** Uses `FullyQualifiedName~TestName` (contains operator) to match Theory variants
 - **TRX parsing:** Regex-based extraction of `<Counters total="X" passed="Y" failed="Z" executed="W" notExecuted="V"/>` attributes
+  - `notExecuted` is used for accurate skipped test counts (fixes issue where `executed - passed - failed` always equals 0)
+  - Falls back to `total - executed` when `notExecuted` attribute is missing
+
+## Theory Test Handling
+
+xUnit/NUnit Theory tests (parameterized tests) produce multiple test variants from a single test method:
+- **Discovery output:** `MyNamespace.MyClass.TestMethod` (base name only)
+- **Actual execution:** `MyNamespace.MyClass.TestMethod(param1)`, `MyNamespace.MyClass.TestMethod(param2)`, etc.
+
+The action handles this by:
+1. Deduplicating Theory variants during discovery (strips parameters)
+2. Using `FullyQualifiedName~BaseName` in filters (contains operator `~` matches all variants)
+
+This ensures all Theory variants stay together in the same shard.
 
 ## Testing the Action Locally
 
@@ -81,4 +101,6 @@ dotnet test --list-tests
 
 - Node.js 22 required (see `.nvmrc`)
 - Pre-commit hook runs build and checks for uncommitted dist/ changes
+  - If dist/ has changes after commit, you must stage them: `git add dist/`
 - CI verifies dist/ is up-to-date via `verify-dist` job
+- This is a GitHub Action - changes to `src/` must be compiled to `dist/` via `npm run build`
