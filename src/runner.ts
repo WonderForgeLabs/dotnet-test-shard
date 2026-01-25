@@ -4,6 +4,54 @@ import * as path from 'path';
 import { TestRunResult } from './types';
 
 /**
+ * Parse a string of arguments respecting quoted strings
+ *
+ * Handles both single and double quotes, allowing spaces within quoted sections.
+ * Examples:
+ *   '--collect:"XPlat Code Coverage"' -> ['--collect:XPlat Code Coverage']
+ *   '--foo bar --baz "hello world"' -> ['--foo', 'bar', '--baz', 'hello world']
+ *
+ * @param argsString - The string of arguments to parse
+ * @returns Array of parsed arguments
+ */
+export function parseArgs(argsString: string): string[] {
+  const args: string[] = [];
+  let current = '';
+  let inQuote: string | null = null;
+
+  for (let i = 0; i < argsString.length; i++) {
+    const char = argsString[i];
+
+    if (inQuote) {
+      if (char === inQuote) {
+        // End of quoted section
+        inQuote = null;
+      } else {
+        current += char;
+      }
+    } else if (char === '"' || char === "'") {
+      // Start of quoted section
+      inQuote = char;
+    } else if (char === ' ' || char === '\t') {
+      // Whitespace outside quotes - end of argument
+      if (current) {
+        args.push(current);
+        current = '';
+      }
+    } else {
+      current += char;
+    }
+  }
+
+  // Don't forget the last argument
+  if (current) {
+    args.push(current);
+  }
+
+  return args;
+}
+
+/**
  * Parse test results from a TRX file
  *
  * TRX files contain XML with test counters in the format:
@@ -106,8 +154,8 @@ export async function runTests(
   }
 
   if (additionalArgs) {
-    // Split additional args on spaces (respecting quotes would be more complex)
-    args.push(...additionalArgs.split(/\s+/).filter((a) => a));
+    // Parse additional args respecting quotes (e.g., '--collect:"XPlat Code Coverage"')
+    args.push(...parseArgs(additionalArgs));
   }
 
   const exitCode = await exec.exec('dotnet', args, {

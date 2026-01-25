@@ -1,4 +1,4 @@
-import { parseTrxResults } from '../src/runner';
+import { parseTrxResults, parseArgs } from '../src/runner';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
@@ -111,5 +111,52 @@ describe('parseTrxResults', () => {
     expect(result.failed).toBe(0);
     expect(result.executed).toBe(0);
     expect(result.notExecuted).toBe(5); // 5 - 0 = 5 (fallback calculation)
+  });
+});
+
+describe('parseArgs', () => {
+  it('parses simple arguments without quotes', () => {
+    const result = parseArgs('--foo --bar baz');
+    expect(result).toEqual(['--foo', '--bar', 'baz']);
+  });
+
+  it('parses arguments with double quotes', () => {
+    const result = parseArgs('--foo "hello world" --bar');
+    expect(result).toEqual(['--foo', 'hello world', '--bar']);
+  });
+
+  it('parses arguments with single quotes', () => {
+    const result = parseArgs("--foo 'hello world' --bar");
+    expect(result).toEqual(['--foo', 'hello world', '--bar']);
+  });
+
+  it('parses XPlat Code Coverage format', () => {
+    const result = parseArgs('--collect:"XPlat Code Coverage"');
+    expect(result).toEqual(['--collect:XPlat Code Coverage']);
+  });
+
+  it('handles multiple quoted arguments', () => {
+    const result = parseArgs('--foo "first value" --bar "second value"');
+    expect(result).toEqual(['--foo', 'first value', '--bar', 'second value']);
+  });
+
+  it('handles empty string', () => {
+    const result = parseArgs('');
+    expect(result).toEqual([]);
+  });
+
+  it('handles whitespace-only string', () => {
+    const result = parseArgs('   ');
+    expect(result).toEqual([]);
+  });
+
+  it('handles mixed tabs and spaces', () => {
+    const result = parseArgs('--foo\t\t--bar   --baz');
+    expect(result).toEqual(['--foo', '--bar', '--baz']);
+  });
+
+  it('preserves colons in arguments', () => {
+    const result = parseArgs('--logger:trx --collect:coverage');
+    expect(result).toEqual(['--logger:trx', '--collect:coverage']);
   });
 });

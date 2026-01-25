@@ -1,5 +1,17 @@
 import { TestRunResult } from './types';
 /**
+ * Parse a string of arguments respecting quoted strings
+ *
+ * Handles both single and double quotes, allowing spaces within quoted sections.
+ * Examples:
+ *   '--collect:"XPlat Code Coverage"' -> ['--collect:XPlat Code Coverage']
+ *   '--foo bar --baz "hello world"' -> ['--foo', 'bar', '--baz', 'hello world']
+ *
+ * @param argsString - The string of arguments to parse
+ * @returns Array of parsed arguments
+ */
+export declare function parseArgs(argsString: string): string[];
+/**
  * Parse test results from a TRX file
  *
  * TRX files contain XML with test counters in the format:
