@@ -179,7 +179,7 @@ Pass any additional arguments to `dotnet test` using `additional-args`:
 | `tests-passed` | Number of tests passed |
 | `tests-failed` | Number of tests failed |
 | `tests-skipped` | Number of tests skipped |
-| `result-file` | Path to the TRX result file |
+| `result-file` | Path to the directory containing TRX result files |
 
 ## How It Works
 

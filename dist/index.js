@@ -26220,8 +26220,7 @@ async function run() {
         const combinedFilter = (0, filter_1.combineFilters)(inputs.filter, shardFilter);
         core.startGroup(`Running tests for shard ${inputs.shard} of ${inputs.totalShards}`);
         // Run tests
-        const resultFileName = `shard-${inputs.shard}-of-${inputs.totalShards}.trx`;
-        const result = await (0, runner_1.runTests)(inputs.testProject, inputs.configuration, inputs.noBuild, combinedFilter, inputs.resultsDirectory, resultFileName, inputs.verbosity, inputs.additionalArgs);
+        const result = await (0, runner_1.runTests)(inputs.testProject, inputs.configuration, inputs.noBuild, combinedFilter, inputs.resultsDirectory, inputs.verbosity, inputs.additionalArgs);
         core.endGroup();
         // Set outputs
         setOutputs({
@@ -26294,6 +26293,7 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.parseArgs = parseArgs;
 exports.parseTrxResults = parseTrxResults;
 exports.runTests = runTests;
+const core = __importStar(__nccwpck_require__(7484));
 const exec = __importStar(__nccwpck_require__(5236));
 const fs = __importStar(__nccwpck_require__(9896));
 const path = __importStar(__nccwpck_require__(6928));
@@ -26338,6 +26338,10 @@ function parseArgs(argsString) {
             current += char;
         }
     }
+    // Warn about unclosed quotes
+    if (inQuote !== null) {
+        core.warning(`Unclosed ${inQuote === '"' ? 'double' : 'single'} quote in additional-args: "${argsString}". Arguments may not be parsed correctly.`);
+    }
     // Don't forget the last argument
     if (current) {
         args.push(current);
@@ -26364,9 +26368,22 @@ function parseArgs(argsString) {
  */
 function parseTrxResults(trxPath) {
     if (!fs.existsSync(trxPath)) {
+        core.warning(`TRX file not found: ${trxPath}. Expected test results file does not exist.`);
         return { total: 0, passed: 0, failed: 0, executed: 0, notExecuted: 0 };
     }
-    const content = fs.readFileSync(trxPath, 'utf-8');
+    let content;
+    try {
+        content = fs.readFileSync(trxPath, 'utf-8');
+    }
+    catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        core.error(`Failed to read TRX file ${trxPath}: ${message}`);
+        throw new Error(`Cannot parse test results from ${trxPath}: ${message}. Check file permissions and ensure the file is not corrupted.`);
+    }
+    // Validate we actually got TRX content
+    if (!content.includes('<TestRun') && !content.includes('<Counters')) {
+        core.warning(`File ${trxPath} does not appear to be a valid TRX file (missing expected XML elements). Results may be inaccurate.`);
+    }
     const totalMatch = content.match(/total="(\d+)"/);
     const passedMatch = content.match(/passed="(\d+)"/);
     const failedMatch = content.match(/failed="(\d+)"/);
@@ -26374,6 +26391,10 @@ function parseTrxResults(trxPath) {
     const notExecutedMatch = content.match(/notExecuted="(\d+)"/);
     const total = totalMatch ? parseInt(totalMatch[1], 10) : 0;
     const executed = executedMatch ? parseInt(executedMatch[1], 10) : 0;
+    // Log if we couldn't find expected attributes
+    if (!totalMatch || !executedMatch) {
+        core.warning(`TRX file ${trxPath} is missing expected 'total' or 'executed' attributes. Results may be incomplete.`);
+    }
     return {
         total,
         passed: passedMatch ? parseInt(passedMatch[1], 10) : 0,
@@ -26392,17 +26413,23 @@ function parseTrxResults(trxPath) {
  * @param noBuild - Skip building
  * @param filter - Test filter expression
  * @param resultsDirectory - Directory for test results
- * @param resultFileName - Name of the TRX result file
  * @param verbosity - Output verbosity level
  * @param additionalArgs - Additional arguments to pass to dotnet test
  * @returns Test run result with counts and exit code
  */
-async function runTests(testProject, configuration, noBuild, filter, resultsDirectory, resultFileName, verbosity, additionalArgs) {
+async function runTests(testProject, configuration, noBuild, filter, resultsDirectory, verbosity, additionalArgs) {
     // Ensure results directory exists
     if (!fs.existsSync(resultsDirectory)) {
-        fs.mkdirSync(resultsDirectory, { recursive: true });
+        try {
+            fs.mkdirSync(resultsDirectory, { recursive: true });
+            core.info(`Created results directory: ${resultsDirectory}`);
+        }
+        catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            core.error(`Failed to create results directory ${resultsDirectory}: ${message}`);
+            throw new Error(`Cannot create results directory ${resultsDirectory}: ${message}. Check directory permissions and available disk space.`);
+        }
     }
-    const resultFile = path.join(resultsDirectory, resultFileName);
     // Use --logger trx without LogFileName to let dotnet generate unique filenames per assembly
     // This prevents TRX file overwrites when testing solutions with multiple assemblies
     // Downstream steps use TestResults/**/*.trx glob to find all result files
@@ -26433,6 +26460,7 @@ async function runTests(testProject, configuration, noBuild, filter, resultsDire
     });
     // Aggregate results from all TRX files in the results directory
     // Since we don't specify LogFileName, dotnet creates unique files per assembly
+    // For solutions with multiple assemblies, this ensures we count ALL test results
     const allResults = {
         total: 0,
         passed: 0,
@@ -26441,19 +26469,57 @@ async function runTests(testProject, configuration, noBuild, filter, resultsDire
         notExecuted: 0,
     };
     if (fs.existsSync(resultsDirectory)) {
-        const trxFiles = fs
-            .readdirSync(resultsDirectory)
-            .filter((f) => f.endsWith('.trx'));
-        for (const file of trxFiles) {
-            const filePath = path.join(resultsDirectory, file);
-            const fileResults = parseTrxResults(filePath);
-            allResults.total += fileResults.total;
-            allResults.passed += fileResults.passed;
-            allResults.failed += fileResults.failed;
-            allResults.executed += fileResults.executed;
-            allResults.notExecuted += fileResults.notExecuted;
+        try {
+            // Verify it's actually a directory
+            const stats = fs.statSync(resultsDirectory);
+            if (!stats.isDirectory()) {
+                throw new Error(`Results path ${resultsDirectory} exists but is not a directory. Please specify a valid directory path.`);
+            }
+            const trxFiles = fs
+                .readdirSync(resultsDirectory)
+                .filter((f) => f.endsWith('.trx'));
+            if (trxFiles.length === 0) {
+                core.warning(`No TRX files found in ${resultsDirectory}. Tests may not have run or results may not have been generated.`);
+            }
+            else {
+                core.info(`Found ${trxFiles.length} TRX file(s) to aggregate`);
+            }
+            for (const file of trxFiles) {
+                const filePath = path.join(resultsDirectory, file);
+                try {
+                    const fileResults = parseTrxResults(filePath);
+                    allResults.total += fileResults.total;
+                    allResults.passed += fileResults.passed;
+                    allResults.failed += fileResults.failed;
+                    allResults.executed += fileResults.executed;
+                    allResults.notExecuted += fileResults.notExecuted;
+                    core.info(`Aggregated ${fileResults.total} tests from ${file} (${fileResults.passed} passed, ${fileResults.failed} failed)`);
+                }
+                catch (error) {
+                    const message = error instanceof Error ? error.message : String(error);
+                    core.error(`Failed to parse TRX file ${filePath}: ${message}. This file will be skipped, results may be incomplete.`);
+                    // Continue processing other files instead of failing completely
+                }
+            }
+        }
+        catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            core.error(`Failed to read results directory ${resultsDirectory}: ${message}`);
+            throw new Error(`Cannot aggregate test results: Unable to read directory ${resultsDirectory}. Check directory permissions and ensure tests ran successfully.`);
         }
     }
+    // Validate aggregated results for consistency
+    if (exitCode !== 0 && allResults.failed === 0) {
+        core.warning(`Test runner exited with code ${exitCode} but no failed tests were found in TRX results. Results may be incomplete or test runner failed before generating results.`);
+    }
+    if (allResults.executed === 0 && exitCode === 0) {
+        core.warning('Test runner succeeded but no tests were executed. Check filter expressions and ensure tests are discovered correctly.');
+    }
+    if (allResults.failed > allResults.executed) {
+        core.error(`Invalid TRX data: ${allResults.failed} tests failed but only ${allResults.executed} tests executed. TRX files may be corrupted.`);
+    }
+    // Log final aggregated totals for transparency
+    core.info(`Final results: ${allResults.executed} executed, ${allResults.passed} passed, ${allResults.failed} failed, ${allResults.notExecuted} skipped`);
     return {
         exitCode,
         testsRun: allResults.executed,

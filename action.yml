@@ -67,7 +67,7 @@ outputs:
   tests-skipped:
     description: 'Number of tests skipped'
   result-file:
-    description: 'Path to the TRX result file'
+    description: 'Path to the directory containing TRX result files (multiple files when testing solutions with multiple assemblies)'
 
 runs:
   using: 'node20'

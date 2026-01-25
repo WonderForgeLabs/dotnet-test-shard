@@ -21,6 +21,7 @@ export interface ActionOutputs {
   testsPassed: number;
   testsFailed: number;
   testsSkipped: number;
+  /** Directory path containing TRX result files (changed from single file path to support multiple assemblies) */
   resultFile: string;
 }
 
@@ -41,5 +42,6 @@ export interface TestRunResult {
   testsPassed: number;
   testsFailed: number;
   testsSkipped: number;
+  /** Directory path containing TRX result files (changed from single file path to support multiple assemblies) */
   resultFile: string;
 }
