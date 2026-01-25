@@ -1,0 +1,10 @@
+#!/bin/sh
+
+npm run build
+
+if [ -n "$(git diff --name-only dist/)" ]; then
+  echo "❌ dist/ has uncommitted changes after build."
+  echo "Please stage the dist/ changes:"
+  echo "  git add dist/"
+  exit 1
+fi
