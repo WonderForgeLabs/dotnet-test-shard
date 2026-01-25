@@ -248,7 +248,7 @@ jobs:
         if: always()
         with:
           name: '.NET Test Results'
-          path: 'TestResults/*.trx'
+          path: 'TestResults/**/*.trx'
           reporter: dotnet-trx
           fail-on-error: false
 
@@ -257,7 +257,7 @@ jobs:
         if: always()
         with:
           files: |
-            TestResults/*.trx
+            TestResults/**/*.trx
             BaselineResults/*.trx
           check_name: 'Test Results Summary'
           comment_title: '📊 Test Results'
