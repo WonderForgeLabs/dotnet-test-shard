@@ -238,6 +238,7 @@ This action is inspired by [Playwright's test sharding](https://playwright.dev/d
 - **Discovery overhead**: `dotnet test --list-tests` adds ~5-10 seconds per shard
 - **Filter length**: Very large test suites may hit command-line length limits
 - **Test ordering**: Tests with identical names in different assemblies may cluster
+- **Quoted arguments**: The `additional-args` input splits arguments on whitespace. Arguments with quoted spaces (e.g., `--blame-hang-timeout "5 min"`) will be incorrectly parsed. Consider using environment variables or alternative argument formats as a workaround.
 
 ## Testing
 

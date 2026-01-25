@@ -26293,6 +26293,7 @@ var __importStar = (this && this.__importStar) || (function () {
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.parseTrxResults = parseTrxResults;
 exports.runTests = runTests;
+const core = __importStar(__nccwpck_require__(7484));
 const exec = __importStar(__nccwpck_require__(5236));
 const fs = __importStar(__nccwpck_require__(9896));
 const path = __importStar(__nccwpck_require__(6928));
@@ -26359,6 +26360,10 @@ async function runTests(testProject, configuration, noBuild, filter, resultsDire
         args.push('--filter', filter);
     }
     if (additionalArgs) {
+        if (additionalArgs.includes('"') || additionalArgs.includes("'")) {
+            core.warning('The additional-args input contains quotes. Arguments with quoted spaces may be incorrectly parsed. ' +
+                'Consider using environment variables as a workaround.');
+        }
         // Split additional args on spaces (respecting quotes would be more complex)
         args.push(...additionalArgs.split(/\s+/).filter((a) => a));
     }

@@ -1,7 +1,9 @@
-import { parseTrxResults } from '../src/runner';
+import { parseTrxResults, runTests } from '../src/runner';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
+import * as core from '@actions/core';
+import * as exec from '@actions/exec';
 
 describe('parseTrxResults', () => {
   let tempDir: string;
@@ -69,5 +71,84 @@ describe('parseTrxResults', () => {
     expect(result.passed).toBe(3);
     expect(result.failed).toBe(0);
     expect(result.executed).toBe(0);
+  });
+});
+
+describe('runTests', () => {
+  let tempDir: string;
+
+  beforeEach(() => {
+    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'test-runner-'));
+    (exec.exec as jest.Mock).mockResolvedValue(0);
+  });
+
+  afterEach(() => {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  });
+
+  it('emits warning when additional-args contains double quotes', async () => {
+    await runTests(
+      'test.csproj',
+      'Release',
+      false,
+      '',
+      tempDir,
+      'results.trx',
+      'normal',
+      '--blame-hang-timeout "5 min"'
+    );
+
+    expect(core.warning).toHaveBeenCalledWith(
+      'The additional-args input contains quotes. Arguments with quoted spaces may be incorrectly parsed. ' +
+        'Consider using environment variables as a workaround.'
+    );
+  });
+
+  it('emits warning when additional-args contains single quotes', async () => {
+    await runTests(
+      'test.csproj',
+      'Release',
+      false,
+      '',
+      tempDir,
+      'results.trx',
+      'normal',
+      "--blame-hang-timeout '5 min'"
+    );
+
+    expect(core.warning).toHaveBeenCalledWith(
+      'The additional-args input contains quotes. Arguments with quoted spaces may be incorrectly parsed. ' +
+        'Consider using environment variables as a workaround.'
+    );
+  });
+
+  it('does not emit warning when additional-args has no quotes', async () => {
+    await runTests(
+      'test.csproj',
+      'Release',
+      false,
+      '',
+      tempDir,
+      'results.trx',
+      'normal',
+      '--blame-hang-timeout 5m'
+    );
+
+    expect(core.warning).not.toHaveBeenCalled();
+  });
+
+  it('does not emit warning when additional-args is empty', async () => {
+    await runTests(
+      'test.csproj',
+      'Release',
+      false,
+      '',
+      tempDir,
+      'results.trx',
+      'normal',
+      ''
+    );
+
+    expect(core.warning).not.toHaveBeenCalled();
   });
 });

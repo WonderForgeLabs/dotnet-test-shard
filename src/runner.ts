@@ -1,3 +1,4 @@
+import * as core from '@actions/core';
 import * as exec from '@actions/exec';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -89,6 +90,12 @@ export async function runTests(
   }
 
   if (additionalArgs) {
+    if (additionalArgs.includes('"') || additionalArgs.includes("'")) {
+      core.warning(
+        'The additional-args input contains quotes. Arguments with quoted spaces may be incorrectly parsed. ' +
+          'Consider using environment variables as a workaround.'
+      );
+    }
     // Split additional args on spaces (respecting quotes would be more complex)
     args.push(...additionalArgs.split(/\s+/).filter((a) => a));
   }

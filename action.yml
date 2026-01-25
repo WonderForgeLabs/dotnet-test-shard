@@ -49,7 +49,7 @@ inputs:
     required: false
     default: 'TestResults'
   additional-args:
-    description: 'Additional arguments to pass to dotnet test'
+    description: 'Additional arguments to pass to dotnet test. Note: Arguments with quoted spaces (e.g., --blame-hang-timeout "5 min") may be incorrectly parsed. Consider using environment variables as a workaround.'
     required: false
     default: ''
   verbosity:
