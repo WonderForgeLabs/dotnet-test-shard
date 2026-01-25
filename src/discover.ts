@@ -56,8 +56,12 @@ export async function discoverTests(
   }
 
   let output = '';
+  // TODO: Use errorOutput for error reporting (see issue #13)
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   let errorOutput = '';
 
+  // TODO: Check exitCode for error handling (see issue #13)
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const exitCode = await exec.exec('dotnet', args, {
     listeners: {
       stdout: (data: Buffer) => {
