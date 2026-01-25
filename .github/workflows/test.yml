@@ -265,7 +265,7 @@ jobs:
 
   # Test edge cases
   test-edge-cases:
-    needs: [build, unit-tests]
+    needs: [build, unit-tests, verify-tests]
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -309,7 +309,7 @@ jobs:
 
   # Test with filter option
   test-with-filter:
-    needs: [build, unit-tests]
+    needs: [build, unit-tests, verify-tests]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
