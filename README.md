@@ -143,6 +143,20 @@ You can combine sharding with standard `dotnet test` filter expressions:
     filter: 'Category!=Integration'
 ```
 
+### With Additional dotnet test Arguments
+
+Pass any additional arguments to `dotnet test` using `additional-args`:
+
+```yaml
+- name: Run tests with code coverage
+  uses: WonderForgeLabs/dotnet-test-shard@v1
+  with:
+    shard: ${{ matrix.shard }}
+    total-shards: 4
+    test-project: ./tests/MyTests.csproj
+    additional-args: '--collect:"XPlat Code Coverage" --blame-hang-timeout 5m'
+```
+
 ## Inputs
 
 | Input | Description | Required | Default |
