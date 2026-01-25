@@ -285,19 +285,6 @@ act -j verify-tests
 
 See also: [How to Test GitHub Actions](https://blog.codacy.com/how-to-test-github-actions)
 
-## Claude Code Integration
-
-This repository includes [Claude Code](https://claude.ai/code) GitHub Actions for automated code review and issue assistance:
-
-- **Automated PR Reviews**: Claude reviews pull requests automatically when opened or updated
-- **Issue/PR Assistance**: Mention `@claude` in any issue or PR comment to get help
-
-### Configuration
-
-Claude Code permissions are defined in `.claude/settings.json`. The GitHub workflows are in:
-- `.github/workflows/claude.yml` - Responds to `@claude` mentions
-- `.github/workflows/claude-code-review.yml` - Automatic PR reviews
-
 ## Contributing
 
 Contributions welcome! Please open an issue or PR.

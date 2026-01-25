@@ -25936,6 +25936,7 @@ var __importStar = (this && this.__importStar) || (function () {
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.parseTestOutput = parseTestOutput;
 exports.discoverTests = discoverTests;
+const core = __importStar(__nccwpck_require__(7484));
 const exec = __importStar(__nccwpck_require__(5236));
 /**
  * Parse test names from dotnet test --list-tests output
@@ -25993,8 +25994,18 @@ async function discoverTests(testProject, configuration, noBuild, filter) {
         },
         ignoreReturnCode: true,
     });
-    // Parse tests even if exit code is non-zero (may have warnings)
     const tests = parseTestOutput(output);
+    // Check for discovery failures
+    if (exitCode !== 0 && tests.length === 0) {
+        throw new Error(`Test discovery failed with exit code ${exitCode}.\n` +
+            `Error output: ${errorOutput || 'No error output'}\n` +
+            `Possible causes: build failure, missing project, or invalid filter.`);
+    }
+    // Warn if there were issues but tests were still found
+    if (exitCode !== 0 && tests.length > 0) {
+        core.warning(`Test discovery completed with warnings (exit code ${exitCode}). ` +
+            `Found ${tests.length} tests. Error output: ${errorOutput.substring(0, 200)}`);
+    }
     return {
         tests,
         totalCount: tests.length,
