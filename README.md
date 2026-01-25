@@ -106,7 +106,7 @@ jobs:
         if: always()
         with:
           name: test-results-shard-${{ matrix.shard }}
-          path: TestResults/
+          path: TestResults/**/*.trx
           retention-days: 7
 
   report:

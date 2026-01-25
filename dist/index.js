@@ -26403,6 +26403,9 @@ async function runTests(testProject, configuration, noBuild, filter, resultsDire
         fs.mkdirSync(resultsDirectory, { recursive: true });
     }
     const resultFile = path.join(resultsDirectory, resultFileName);
+    // Use --logger trx without LogFileName to let dotnet generate unique filenames per assembly
+    // This prevents TRX file overwrites when testing solutions with multiple assemblies
+    // Downstream steps use TestResults/**/*.trx glob to find all result files
     const args = [
         'test',
         testProject,
@@ -26411,7 +26414,7 @@ async function runTests(testProject, configuration, noBuild, filter, resultsDire
         '--verbosity',
         verbosity,
         '--logger',
-        `trx;LogFileName=${resultFileName}`,
+        'trx',
         '--results-directory',
         resultsDirectory,
     ];
@@ -26428,15 +26431,36 @@ async function runTests(testProject, configuration, noBuild, filter, resultsDire
     const exitCode = await exec.exec('dotnet', args, {
         ignoreReturnCode: true,
     });
-    // Parse results from TRX file
-    const results = parseTrxResults(resultFile);
+    // Aggregate results from all TRX files in the results directory
+    // Since we don't specify LogFileName, dotnet creates unique files per assembly
+    const allResults = {
+        total: 0,
+        passed: 0,
+        failed: 0,
+        executed: 0,
+        notExecuted: 0,
+    };
+    if (fs.existsSync(resultsDirectory)) {
+        const trxFiles = fs
+            .readdirSync(resultsDirectory)
+            .filter((f) => f.endsWith('.trx'));
+        for (const file of trxFiles) {
+            const filePath = path.join(resultsDirectory, file);
+            const fileResults = parseTrxResults(filePath);
+            allResults.total += fileResults.total;
+            allResults.passed += fileResults.passed;
+            allResults.failed += fileResults.failed;
+            allResults.executed += fileResults.executed;
+            allResults.notExecuted += fileResults.notExecuted;
+        }
+    }
     return {
         exitCode,
-        testsRun: results.executed,
-        testsPassed: results.passed,
-        testsFailed: results.failed,
-        testsSkipped: results.notExecuted,
-        resultFile,
+        testsRun: allResults.executed,
+        testsPassed: allResults.passed,
+        testsFailed: allResults.failed,
+        testsSkipped: allResults.notExecuted,
+        resultFile: resultsDirectory, // Return directory path since multiple files exist
     };
 }
 

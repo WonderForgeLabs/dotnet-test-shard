@@ -147,7 +147,7 @@ jobs:
           total-shards: 4
           test-project: ./test-project
           configuration: Debug
-          results-directory: TestResults
+          results-directory: TestResults/shard-${{ matrix.shard }}
 
       - name: Verify shard results
         run: |
@@ -198,7 +198,7 @@ jobs:
           echo "Baseline total tests: $BASELINE_TOTAL"
 
           SHARD_TOTAL=0
-          for trx in TestResults/shard-*.trx; do
+          for trx in TestResults/*.trx; do
             if [[ -f "$trx" ]]; then
               COUNT=$(grep -oP 'total="\K[0-9]+' "$trx" | head -1 || echo "0")
               echo "$(basename $trx): $COUNT tests"
