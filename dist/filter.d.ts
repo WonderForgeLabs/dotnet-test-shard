@@ -1,4 +1,14 @@
 /**
+ * Escape special characters in a test name for use in VSTest filter expressions
+ *
+ * VSTest filter syntax uses these special characters: ( ) | & ~ ! = < >
+ * Backslashes are also escaped since they're the escape character.
+ *
+ * @param value - The test name to escape
+ * @returns The escaped test name safe for use in filter expressions
+ */
+export declare function escapeFilterValue(value: string): string;
+/**
  * Calculate which tests belong to a specific shard using modulo distribution
  *
  * This provides deterministic, even distribution of tests across shards

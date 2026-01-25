@@ -26010,9 +26010,22 @@ async function discoverTests(testProject, configuration, noBuild, filter) {
 "use strict";
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.escapeFilterValue = escapeFilterValue;
 exports.getTestsForShard = getTestsForShard;
 exports.buildFilterExpression = buildFilterExpression;
 exports.combineFilters = combineFilters;
+/**
+ * Escape special characters in a test name for use in VSTest filter expressions
+ *
+ * VSTest filter syntax uses these special characters: ( ) | & ~ ! = < >
+ * Backslashes are also escaped since they're the escape character.
+ *
+ * @param value - The test name to escape
+ * @returns The escaped test name safe for use in filter expressions
+ */
+function escapeFilterValue(value) {
+    return value.replace(/[()&|~!=<>\\]/g, '\\$&');
+}
 /**
  * Calculate which tests belong to a specific shard using modulo distribution
  *
@@ -26054,7 +26067,7 @@ function buildFilterExpression(tests) {
     if (tests.length === 0) {
         return '';
     }
-    return tests.map((test) => `(FullyQualifiedName~${test})`).join('|');
+    return tests.map((test) => `(FullyQualifiedName~${escapeFilterValue(test)})`).join('|');
 }
 /**
  * Combine a base filter with a shard filter using AND logic
