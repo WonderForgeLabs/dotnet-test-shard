@@ -1,3 +1,4 @@
+import * as core from '@actions/core';
 import * as exec from '@actions/exec';
 import { DiscoveryResult } from './types';
 
@@ -56,12 +57,8 @@ export async function discoverTests(
   }
 
   let output = '';
-  // TODO: Use errorOutput for error reporting (see issue #13)
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   let errorOutput = '';
 
-  // TODO: Check exitCode for error handling (see issue #13)
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const exitCode = await exec.exec('dotnet', args, {
     listeners: {
       stdout: (data: Buffer) => {
@@ -74,8 +71,24 @@ export async function discoverTests(
     ignoreReturnCode: true,
   });
 
-  // Parse tests even if exit code is non-zero (may have warnings)
   const tests = parseTestOutput(output);
+
+  // Check for discovery failures
+  if (exitCode !== 0 && tests.length === 0) {
+    throw new Error(
+      `Test discovery failed with exit code ${exitCode}.\n` +
+        `Error output: ${errorOutput || 'No error output'}\n` +
+        `Possible causes: build failure, missing project, or invalid filter.`
+    );
+  }
+
+  // Warn if there were issues but tests were still found
+  if (exitCode !== 0 && tests.length > 0) {
+    core.warning(
+      `Test discovery completed with warnings (exit code ${exitCode}). ` +
+        `Found ${tests.length} tests. Error output: ${errorOutput.substring(0, 200)}`
+    );
+  }
 
   return {
     tests,
