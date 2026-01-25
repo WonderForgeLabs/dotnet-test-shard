@@ -30,6 +30,45 @@ describe('parseTrxResults', () => {
     expect(result.passed).toBe(8);
     expect(result.failed).toBe(1);
     expect(result.executed).toBe(10);
+    expect(result.notExecuted).toBe(0);
+  });
+
+  it('parses notExecuted attribute for skipped tests', () => {
+    const trxContent = `<?xml version="1.0" encoding="UTF-8"?>
+<TestRun>
+  <ResultSummary outcome="Completed">
+    <Counters total="15" executed="10" passed="8" failed="2" notExecuted="5" />
+  </ResultSummary>
+</TestRun>`;
+    const trxPath = path.join(tempDir, 'skipped.trx');
+    fs.writeFileSync(trxPath, trxContent);
+
+    const result = parseTrxResults(trxPath);
+
+    expect(result.total).toBe(15);
+    expect(result.executed).toBe(10);
+    expect(result.passed).toBe(8);
+    expect(result.failed).toBe(2);
+    expect(result.notExecuted).toBe(5);
+  });
+
+  it('calculates notExecuted from total - executed when attribute is missing', () => {
+    const trxContent = `<?xml version="1.0" encoding="UTF-8"?>
+<TestRun>
+  <ResultSummary outcome="Completed">
+    <Counters total="20" executed="15" passed="14" failed="1" />
+  </ResultSummary>
+</TestRun>`;
+    const trxPath = path.join(tempDir, 'no-notexecuted.trx');
+    fs.writeFileSync(trxPath, trxContent);
+
+    const result = parseTrxResults(trxPath);
+
+    expect(result.total).toBe(20);
+    expect(result.executed).toBe(15);
+    expect(result.passed).toBe(14);
+    expect(result.failed).toBe(1);
+    expect(result.notExecuted).toBe(5); // 20 - 15 = 5
   });
 
   it('returns zeros for non-existent file', () => {
@@ -39,6 +78,7 @@ describe('parseTrxResults', () => {
     expect(result.passed).toBe(0);
     expect(result.failed).toBe(0);
     expect(result.executed).toBe(0);
+    expect(result.notExecuted).toBe(0);
   });
 
   it('returns zeros for file without counters', () => {
@@ -56,6 +96,7 @@ describe('parseTrxResults', () => {
     expect(result.passed).toBe(0);
     expect(result.failed).toBe(0);
     expect(result.executed).toBe(0);
+    expect(result.notExecuted).toBe(0);
   });
 
   it('handles partial counters', () => {
@@ -69,5 +110,6 @@ describe('parseTrxResults', () => {
     expect(result.passed).toBe(3);
     expect(result.failed).toBe(0);
     expect(result.executed).toBe(0);
+    expect(result.notExecuted).toBe(5); // 5 - 0 = 5 (fallback calculation)
   });
 });

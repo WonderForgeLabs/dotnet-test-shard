@@ -7,19 +7,29 @@ import { TestRunResult } from './types';
  * Parse test results from a TRX file
  *
  * TRX files contain XML with test counters in the format:
- * <Counters total="X" passed="Y" failed="Z" .../>
+ * <Counters total="X" executed="Y" passed="Z" failed="W" notExecuted="V" .../>
+ *
+ * Key attributes:
+ * - total: Total number of tests discovered
+ * - executed: Number of tests that were run
+ * - passed: Number of tests that passed
+ * - failed: Number of tests that failed
+ * - notExecuted: Number of tests that were skipped/not run
+ *
+ * Note: notExecuted = total - executed (tests filtered or skipped)
  *
  * @param trxPath - Path to the TRX result file
- * @returns Parsed test counts
+ * @returns Parsed test counts including notExecuted for skipped tests
  */
 export function parseTrxResults(trxPath: string): {
   total: number;
   passed: number;
   failed: number;
   executed: number;
+  notExecuted: number;
 } {
   if (!fs.existsSync(trxPath)) {
-    return { total: 0, passed: 0, failed: 0, executed: 0 };
+    return { total: 0, passed: 0, failed: 0, executed: 0, notExecuted: 0 };
   }
 
   const content = fs.readFileSync(trxPath, 'utf-8');
@@ -28,12 +38,19 @@ export function parseTrxResults(trxPath: string): {
   const passedMatch = content.match(/passed="(\d+)"/);
   const failedMatch = content.match(/failed="(\d+)"/);
   const executedMatch = content.match(/executed="(\d+)"/);
+  const notExecutedMatch = content.match(/notExecuted="(\d+)"/);
+
+  const total = totalMatch ? parseInt(totalMatch[1], 10) : 0;
+  const executed = executedMatch ? parseInt(executedMatch[1], 10) : 0;
 
   return {
-    total: totalMatch ? parseInt(totalMatch[1], 10) : 0,
+    total,
     passed: passedMatch ? parseInt(passedMatch[1], 10) : 0,
     failed: failedMatch ? parseInt(failedMatch[1], 10) : 0,
-    executed: executedMatch ? parseInt(executedMatch[1], 10) : 0,
+    executed,
+    notExecuted: notExecutedMatch
+      ? parseInt(notExecutedMatch[1], 10)
+      : total - executed,
   };
 }
 
@@ -99,14 +116,13 @@ export async function runTests(
 
   // Parse results from TRX file
   const results = parseTrxResults(resultFile);
-  const skipped = Math.max(0, results.executed - results.passed - results.failed);
 
   return {
     exitCode,
     testsRun: results.executed,
     testsPassed: results.passed,
     testsFailed: results.failed,
-    testsSkipped: skipped,
+    testsSkipped: results.notExecuted,
     resultFile,
   };
 }
