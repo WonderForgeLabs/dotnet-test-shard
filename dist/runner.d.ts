@@ -3,16 +3,26 @@ import { TestRunResult } from './types';
  * Parse test results from a TRX file
  *
  * TRX files contain XML with test counters in the format:
- * <Counters total="X" passed="Y" failed="Z" .../>
+ * <Counters total="X" executed="Y" passed="Z" failed="W" notExecuted="V" .../>
+ *
+ * Key attributes:
+ * - total: Total number of tests discovered
+ * - executed: Number of tests that were run
+ * - passed: Number of tests that passed
+ * - failed: Number of tests that failed
+ * - notExecuted: Number of tests that were skipped/not run
+ *
+ * Note: notExecuted = total - executed (tests filtered or skipped)
  *
  * @param trxPath - Path to the TRX result file
- * @returns Parsed test counts
+ * @returns Parsed test counts including notExecuted for skipped tests
  */
 export declare function parseTrxResults(trxPath: string): {
     total: number;
     passed: number;
     failed: number;
     executed: number;
+    notExecuted: number;
 };
 /**
  * Run dotnet test with the specified parameters
