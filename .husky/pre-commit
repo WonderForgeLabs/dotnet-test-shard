@@ -1,10 +1,19 @@
 #!/bin/sh
 
+# Rebuild the action to ensure dist/ is up-to-date with src/
 npm run build
 
+# Check if dist/ has uncommitted changes after build
+# Note: This is a GitHub Action - changes to src/ must be compiled to dist/
+# The action runs from dist/index.js, so dist/ must always be in sync with src/
 if [ -n "$(git diff --name-only dist/)" ]; then
   echo "❌ dist/ has uncommitted changes after build."
-  echo "Please stage the dist/ changes:"
+  echo ""
+  echo "This is a GitHub Action that runs from compiled dist/ code."
+  echo "When you change src/ files, dist/ must be rebuilt and committed."
+  echo ""
+  echo "Please stage the dist/ changes and commit again:"
   echo "  git add dist/"
+  echo "  git commit --amend --no-edit"
   exit 1
 fi
