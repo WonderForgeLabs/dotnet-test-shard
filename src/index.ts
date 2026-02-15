@@ -167,9 +167,22 @@ async function run(): Promise<void> {
       result.testsSkipped
     );
 
-    // Fail if tests failed
-    if (result.exitCode !== 0) {
-      core.setFailed(`Tests failed with exit code ${result.exitCode}`);
+    // Determine pass/fail using TRX results as source of truth when available.
+    // The dotnet test exit code can be non-zero even when all tests pass (e.g.,
+    // Aspire test fixtures that force-exit during teardown cause xUnit to report
+    // a "test process crash" to the orchestrator, which returns exit code 1).
+    if (result.testsFailed > 0) {
+      core.setFailed(
+        `${result.testsFailed} test(s) failed (exit code ${result.exitCode})`
+      );
+    } else if (result.exitCode !== 0 && result.testsRun === 0) {
+      core.setFailed(
+        `Test runner exited with code ${result.exitCode} and no tests were run`
+      );
+    } else if (result.exitCode !== 0) {
+      core.warning(
+        `Test runner exited with code ${result.exitCode} but all ${result.testsRun} tests passed (TRX results used as source of truth)`
+      );
     }
   } catch (error) {
     if (error instanceof Error) {
