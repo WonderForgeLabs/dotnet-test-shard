@@ -68,6 +68,27 @@ Total: 2 tests
     expect(tests).toEqual(['Alpha.Test', 'Beta.Test', 'Zebra.Test']);
   });
 
+  it('handles interleaved output from parallel assembly discovery', () => {
+    // When dotnet lists tests from multiple assemblies in parallel, stdout chunks
+    // from different assemblies can be concatenated on the same line without a
+    // newline separator, e.g.:
+    //   "    Ns.A.TheoryTest(typeof(V1FluxType), \"FluxType\")    Ns.B.OtherTest"
+    // The closing ')' is no longer at end-of-string, so the old /\(.*\)$/ regex
+    // would silently fail to strip params, emitting the raw '(' into the filter
+    // and causing MSB4177 "Invalid property" errors in dotnet test.
+    const output = `
+The following Tests are available:
+    Platform.Entities.Tests.AllKindsShouldHaveCorrectKind(type: typeof(V1FluxType), expectedKind: "FluxType")    WonderForge.Tests.Platform.ApiTests.SomeOtherTest
+    WonderForge.Tests.Platform.NormalTest
+`;
+    const tests = parseTestOutput(output);
+    // The interleaved line must be stripped to just the base method name;
+    // the trailing "    WonderForge.Tests..." after the ')' is discarded.
+    expect(tests).toContain('Platform.Entities.Tests.AllKindsShouldHaveCorrectKind');
+    // No parentheses should survive into the output
+    expect(tests.every((t) => !t.includes('('))).toBe(true);
+  });
+
   it('handles various indentation levels', () => {
     const output = `
     Test1

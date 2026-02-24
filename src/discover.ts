@@ -19,8 +19,16 @@ export function parseTestOutput(output: string): string[] {
     const match = line.match(/^\s{4,}([A-Za-z].*)$/);
     if (match) {
       let testName = match[1].trim();
-      // Strip Theory parameters: TestMethod(value: 1) -> TestMethod
-      testName = testName.replace(/\(.*\)$/, '');
+      // Strip Theory parameters from the first '(' onward.
+      // Using /\(.*$/ (not /\(.*\)$/) handles two cases:
+      //   1. Normal: "TestMethod(param: 1)" -> "TestMethod"
+      //   2. Interleaved output: when dotnet lists tests from multiple assemblies
+      //      in parallel the stdout chunks can be concatenated without a newline,
+      //      e.g. "SomeTest(typeof(V1FluxType), \"x\")    OtherTest". The closing ')'
+      //      is no longer at end-of-string so /\(.*\)$/ silently fails to strip,
+      //      leaving the raw '(' in the test name and later breaking the
+      //      FullyQualifiedName~ filter expression with an MSB4177 error.
+      testName = testName.replace(/\(.*$/, '');
       if (testName) {
         testNames.add(testName);
       }
