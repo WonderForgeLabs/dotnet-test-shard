@@ -26189,43 +26189,51 @@ async function run() {
     try {
         const inputs = getInputs();
         validateInputs(inputs);
-        core.startGroup(`Discovering tests for shard ${inputs.shard} of ${inputs.totalShards}`);
-        // Discover all tests
-        const discovery = await (0, discover_1.discoverTests)(inputs.testProject, inputs.configuration, inputs.noBuild, inputs.filter);
-        core.info(`Total tests discovered: ${discovery.totalCount}`);
-        if (discovery.totalCount === 0) {
-            core.warning('No tests discovered');
-            setOutputs({
-                testsRun: 0,
-                testsPassed: 0,
-                testsFailed: 0,
-                testsSkipped: 0,
-                resultFile: '',
-            });
-            writeSummary(inputs.shard, inputs.totalShards, 0, 0, 0, 0);
+        // When total-shards is 1, skip discovery and filter — run all tests directly.
+        // Building a --filter with every test FQN can exceed the OS ARG_MAX limit (E2BIG).
+        let combinedFilter = inputs.filter || '';
+        if (inputs.totalShards > 1) {
+            core.startGroup(`Discovering tests for shard ${inputs.shard} of ${inputs.totalShards}`);
+            // Discover all tests
+            const discovery = await (0, discover_1.discoverTests)(inputs.testProject, inputs.configuration, inputs.noBuild, inputs.filter);
+            core.info(`Total tests discovered: ${discovery.totalCount}`);
+            if (discovery.totalCount === 0) {
+                core.warning('No tests discovered');
+                setOutputs({
+                    testsRun: 0,
+                    testsPassed: 0,
+                    testsFailed: 0,
+                    testsSkipped: 0,
+                    resultFile: '',
+                });
+                writeSummary(inputs.shard, inputs.totalShards, 0, 0, 0, 0);
+                core.endGroup();
+                return;
+            }
+            // Get tests for this shard
+            const shardTests = (0, filter_1.getTestsForShard)(discovery.tests, inputs.shard, inputs.totalShards);
+            core.info(`Tests in shard ${inputs.shard}: ${shardTests.length}`);
+            if (shardTests.length === 0) {
+                core.info('No tests assigned to this shard');
+                setOutputs({
+                    testsRun: 0,
+                    testsPassed: 0,
+                    testsFailed: 0,
+                    testsSkipped: 0,
+                    resultFile: '',
+                });
+                writeSummary(inputs.shard, inputs.totalShards, 0, 0, 0, 0);
+                core.endGroup();
+                return;
+            }
             core.endGroup();
-            return;
+            // Build filter expression
+            const shardFilter = (0, filter_1.buildFilterExpression)(shardTests);
+            combinedFilter = (0, filter_1.combineFilters)(inputs.filter, shardFilter);
         }
-        // Get tests for this shard
-        const shardTests = (0, filter_1.getTestsForShard)(discovery.tests, inputs.shard, inputs.totalShards);
-        core.info(`Tests in shard ${inputs.shard}: ${shardTests.length}`);
-        if (shardTests.length === 0) {
-            core.info('No tests assigned to this shard');
-            setOutputs({
-                testsRun: 0,
-                testsPassed: 0,
-                testsFailed: 0,
-                testsSkipped: 0,
-                resultFile: '',
-            });
-            writeSummary(inputs.shard, inputs.totalShards, 0, 0, 0, 0);
-            core.endGroup();
-            return;
+        else {
+            core.info('Single shard — running all tests without filter (avoids ARG_MAX limit)');
         }
-        core.endGroup();
-        // Build filter expression
-        const shardFilter = (0, filter_1.buildFilterExpression)(shardTests);
-        const combinedFilter = (0, filter_1.combineFilters)(inputs.filter, shardFilter);
         core.startGroup(`Running tests for shard ${inputs.shard} of ${inputs.totalShards}`);
         // Run tests
         const result = await (0, runner_1.runTests)(inputs.testProject, inputs.configuration, inputs.noBuild, combinedFilter, inputs.resultsDirectory, inputs.verbosity, inputs.additionalArgs);
