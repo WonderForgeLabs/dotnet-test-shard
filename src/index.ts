@@ -83,55 +83,63 @@ async function run(): Promise<void> {
     const inputs = getInputs();
     validateInputs(inputs);
 
-    core.startGroup(`Discovering tests for shard ${inputs.shard} of ${inputs.totalShards}`);
+    // When total-shards is 1, skip discovery and filter — run all tests directly.
+    // Building a --filter with every test FQN can exceed the OS ARG_MAX limit (E2BIG).
+    let combinedFilter = inputs.filter || '';
 
-    // Discover all tests
-    const discovery = await discoverTests(
-      inputs.testProject,
-      inputs.configuration,
-      inputs.noBuild,
-      inputs.filter
-    );
+    if (inputs.totalShards > 1) {
+      core.startGroup(`Discovering tests for shard ${inputs.shard} of ${inputs.totalShards}`);
 
-    core.info(`Total tests discovered: ${discovery.totalCount}`);
+      // Discover all tests
+      const discovery = await discoverTests(
+        inputs.testProject,
+        inputs.configuration,
+        inputs.noBuild,
+        inputs.filter
+      );
 
-    if (discovery.totalCount === 0) {
-      core.warning('No tests discovered');
-      setOutputs({
-        testsRun: 0,
-        testsPassed: 0,
-        testsFailed: 0,
-        testsSkipped: 0,
-        resultFile: '',
-      });
-      writeSummary(inputs.shard, inputs.totalShards, 0, 0, 0, 0);
+      core.info(`Total tests discovered: ${discovery.totalCount}`);
+
+      if (discovery.totalCount === 0) {
+        core.warning('No tests discovered');
+        setOutputs({
+          testsRun: 0,
+          testsPassed: 0,
+          testsFailed: 0,
+          testsSkipped: 0,
+          resultFile: '',
+        });
+        writeSummary(inputs.shard, inputs.totalShards, 0, 0, 0, 0);
+        core.endGroup();
+        return;
+      }
+
+      // Get tests for this shard
+      const shardTests = getTestsForShard(discovery.tests, inputs.shard, inputs.totalShards);
+      core.info(`Tests in shard ${inputs.shard}: ${shardTests.length}`);
+
+      if (shardTests.length === 0) {
+        core.info('No tests assigned to this shard');
+        setOutputs({
+          testsRun: 0,
+          testsPassed: 0,
+          testsFailed: 0,
+          testsSkipped: 0,
+          resultFile: '',
+        });
+        writeSummary(inputs.shard, inputs.totalShards, 0, 0, 0, 0);
+        core.endGroup();
+        return;
+      }
+
       core.endGroup();
-      return;
+
+      // Build filter expression
+      const shardFilter = buildFilterExpression(shardTests);
+      combinedFilter = combineFilters(inputs.filter, shardFilter);
+    } else {
+      core.info('Single shard — running all tests without filter (avoids ARG_MAX limit)');
     }
-
-    // Get tests for this shard
-    const shardTests = getTestsForShard(discovery.tests, inputs.shard, inputs.totalShards);
-    core.info(`Tests in shard ${inputs.shard}: ${shardTests.length}`);
-
-    if (shardTests.length === 0) {
-      core.info('No tests assigned to this shard');
-      setOutputs({
-        testsRun: 0,
-        testsPassed: 0,
-        testsFailed: 0,
-        testsSkipped: 0,
-        resultFile: '',
-      });
-      writeSummary(inputs.shard, inputs.totalShards, 0, 0, 0, 0);
-      core.endGroup();
-      return;
-    }
-
-    core.endGroup();
-
-    // Build filter expression
-    const shardFilter = buildFilterExpression(shardTests);
-    const combinedFilter = combineFilters(inputs.filter, shardFilter);
 
     core.startGroup(`Running tests for shard ${inputs.shard} of ${inputs.totalShards}`);
 
