@@ -19,7 +19,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       # Drafts release notes on push to main
-      - uses: release-drafter/release-drafter@v6
+      - uses: release-drafter/release-drafter@v7
         if: github.event_name == 'push'
         with:
           config-name: release-drafter.yml
@@ -27,7 +27,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       # Auto-labels PRs based on title/branch
-      - uses: release-drafter/release-drafter@v6
+      - uses: release-drafter/release-drafter@v7
         if: github.event_name == 'pull_request'
         with:
           config-name: release-drafter.yml
